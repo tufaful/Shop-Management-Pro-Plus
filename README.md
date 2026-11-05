@@ -34,7 +34,7 @@
 
 ## 🚀 Quick Links
 - **Developer GitHub:** [https://github.com/tufaful](https://github.com/tufaful)
-- **Repository:** [https://github.com/tufaful/Shop-Management-Pro](https://github.com/tufaful/Shop-Management-Pro)
+- **Repository:** [https://github.com/tufaful/Shop-Management-Pro-Plus](https://github.com/tufaful/Shop-Management-Pro-Plus)
 
 ---
 
