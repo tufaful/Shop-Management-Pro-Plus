@@ -5184,7 +5184,7 @@ body {
       nav_suppliers: "Suppliers",
       nav_due: "Due Book",
       nav_reports: "Reports",
-      nav_categories: "Categories",
+      nav_categories: "Categories & Units",
       nav_units: "Units",
       nav_backup: "Backup & Restore",
       nav_recycle_bin: "Recycle Bin",
@@ -5298,7 +5298,7 @@ body {
       reports: "Reports",
       invoices: "Invoices",
       barcode_tools: "Barcode Tools",
-      categories: "Categories",
+      categories: "Categories & Units",
       backup_restore: "Backup & Restore",
       settings: "Settings",
       save: "Save",
@@ -5445,7 +5445,7 @@ body {
       nav_suppliers: "মহাজন / সাপ্লায়ার",
       nav_due: "বাকি খাতা",
       nav_reports: "রিপোর্ট",
-      nav_categories: "ক্যাটাগরি",
+      nav_categories: "ক্যাটাগরি ও একক",
       nav_units: "পরিমাপ একক",
       nav_backup: "ব্যাকআপ ও রিস্টোর",
       nav_recycle_bin: "রিসাইকেল বিন",
@@ -5559,7 +5559,7 @@ body {
       reports: "রিপোর্ট",
       invoices: "চালান তালিকা",
       barcode_tools: "বারকোড প্রিন্ট",
-      categories: "ক্যাটাগরি সমূহ",
+      categories: "ক্যাটাগরি ও একক",
       backup_restore: "ডাটা ব্যাকআপ",
       settings: "সেটিংস",
       save: "সংরক্ষণ করুন",
@@ -14252,14 +14252,11 @@ async function renderReports(container) {
           </div>
         </div>
 
-        <!-- Pagination & List Info Bar (Top) -->
+        <!-- List Info Bar (Top) -->
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
           <div style="font-size:13.5px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px;">
             <span>📜 ${_txt("VAT Ledger Book", "ভ্যাট ও ট্যাক্স খতিয়ান রেজিস্টার")}</span>
             <span style="font-size:11px; background:var(--primary-lt); color:var(--primary); padding:2px 8px; border-radius:12px; font-weight:800; font-family:monospace;">${totalFilteredCount}</span>
-          </div>
-          <div>
-            ${renderPagination("vat_ledger", totalFilteredCount)}
           </div>
         </div>
 
@@ -15183,14 +15180,11 @@ async function renderReports(container) {
           </div>
         </div>
 
-        <!-- Pagination & List Info Bar (Top) -->
+        <!-- List Info Bar (Top) -->
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
           <div style="font-size:13.5px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px;">
             <span>📜 ${_txt("Transactions Log", "ক্যাশ লেনদেন রেজিস্টার")}</span>
             <span style="font-size:11px; background:var(--primary-lt); color:var(--primary); padding:2px 8px; border-radius:12px; font-weight:800; font-family:monospace;">${totalFilteredCount}</span>
-          </div>
-          <div>
-            ${renderPagination("cash_ledger", totalFilteredCount)}
           </div>
         </div>
 
@@ -17612,15 +17606,12 @@ async function renderReports(container) {
           </div>
         </div>
 
-        <!-- Pagination & Counter bar -->
+        <!-- Counter bar -->
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:0 16px 10px 16px;">
           <div style="font-size:13px; font-weight:700; color:var(--text-main); display:flex; align-items:center; gap:6px;">
             <span>📋 ${_txt("Showing", "প্রদর্শিত:")}</span>
             <span style="font-family:monospace; color:var(--primary); font-weight:800;">${paginatedChallans.length} / ${totalFilteredCount}</span>
             <span>${_txt("challans & vouchers", "টি চালান ও ভাউচার")}</span>
-          </div>
-          <div>
-            ${renderPagination("invoices", totalFilteredCount)}
           </div>
         </div>
 
@@ -17920,11 +17911,31 @@ async function renderReports(container) {
       }
     }
 
+    let units = await dbGetAll("units");
+    if (!units || units.length === 0) {
+      if (window.App && typeof window.App.seedDefaultUnits === "function") {
+        await window.App.seedDefaultUnits(true);
+        units = await dbGetAll("units");
+      }
+    }
+
     // Filter out mfs_wallet completely as requested by user
     categories = (categories || []).filter(c => c.type !== "mfs_wallet");
     if (window.App.categoryTab === "mfs_wallet") {
       window.App.categoryTab = "all";
     }
+
+    // Map measurement units as unified classification items (type: 'unit')
+    const mappedUnits = (units || []).map(u => ({
+      id: u.id,
+      name: u.name,
+      type: "unit",
+      notes: u.notes || null,
+      createdAt: u.createdAt || null,
+      _isUnitStore: true
+    }));
+
+    const allUnifiedItems = [...categories, ...mappedUnits];
 
     const [products, expenses, income, deliveries, fixedAssets, damageWriteOffs, staffLeaves] = await Promise.all([
       dbGetAll("products") || [],
@@ -17936,9 +17947,10 @@ async function renderReports(container) {
       dbGetAll("staffLeaves") || []
     ]);
 
-    // Item count & financial maps per category
+    // Item count & financial maps per category & unit
     const prodStats = {};
     const brandStats = {};
+    const unitStats = {};
     let totalStockQty = 0;
     let totalStockValuation = 0;
     products.forEach(p => {
@@ -17957,6 +17969,13 @@ async function renderReports(container) {
         brandStats[p.brand].count += 1;
         brandStats[p.brand].qty += qty;
         brandStats[p.brand].val += (qty * price);
+      }
+
+      if (p.unit) {
+        if (!unitStats[p.unit]) unitStats[p.unit] = { count: 0, qty: 0, val: 0 };
+        unitStats[p.unit].count += 1;
+        unitStats[p.unit].qty += qty;
+        unitStats[p.unit].val += (qty * price);
       }
     });
 
@@ -18010,10 +18029,10 @@ async function renderReports(container) {
     const activeTab = window.App.categoryTab || "all";
     const searchQuery = (window.App.categorySearchQuery || "").toLowerCase().trim();
 
-    // Counts for tabs (without mfs_wallet)
-    const totalCount = categories.length;
+    // Counts for tabs (including unified units)
+    const totalCount = allUnifiedItems.length;
     const typeCounts = {
-      product: 0, courier: 0, brand: 0, expense: 0, income: 0,
+      product: 0, unit: mappedUnits.length, courier: 0, brand: 0, expense: 0, income: 0,
       customer_tier: 0, supplier_group: 0, asset: 0,
       damage_reason: 0, leave_type: 0
     };
@@ -18023,11 +18042,11 @@ async function renderReports(container) {
       else typeCounts.product++;
     });
 
-    // Filter categories
-    let filteredCategories = [...categories];
+    // Filter unified items
+    let filteredCategories = [...allUnifiedItems];
     if (activeTab !== "all") {
       filteredCategories = filteredCategories.filter(c => {
-        if (activeTab === "product") return c.type === "product" || !c.type;
+        if (activeTab === "product") return (c.type === "product" || !c.type) && !c._isUnitStore;
         return c.type === activeTab;
       });
     }
@@ -18058,27 +18077,27 @@ async function renderReports(container) {
     };
 
     const headerHtml = window.App.renderPageHeader({
-      title: t("categories"),
+      title: _txt("Categories & Units", "ক্যাটাগরি ও একক"),
       icon: "🏷️",
       totalCount: totalCount,
       fallback: "products",
       breadcrumbs: [
         { label: _txt("Dashboard", "ড্যাশবোর্ড"), view: "dashboard" },
         { label: _txt("Products", "পণ্য তালিকা"), view: "products" },
-        { label: _txt("Categories", "ক্যাটাগরি ও শ্রেণিবিন্যাস") }
+        { label: _txt("Categories & Units", "ক্যাটাগরি ও একক") }
       ],
       enablePrint: true,
       enableExport: true,
       printTableSelector: "#categoriesTable",
       exportTableSelector: "#categoriesTable",
-      exportFilename: "categories_hub_list",
+      exportFilename: "categories_and_units_hub",
       actionsHtml: `
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-outline" onclick="App.confirmRestoreDefaultCategories()" title="${_txt('Restore standard built-in categories', 'ডিফল্ট ক্যাটাগরিগুলো রিস্টোর বা সিড করুন')}">
+          <button class="btn btn-outline" onclick="App.confirmRestoreDefaultCategories()" title="${_txt('Restore standard built-in categories and units', 'ডিফল্ট ক্যাটাগরি ও এককগুলো রিস্টোর বা সিড করুন')}">
             🔄 ${_txt("Restore Defaults", "ডিফল্ট সিড")}
           </button>
-          <button class="btn btn-primary" onclick="App.openAddCategoryModal()">
-            ➕ ${_txt("New Category", "নতুন ক্যাটাগরি যোগ")}
+          <button class="btn btn-primary" onclick="App.openAddCategoryModal('${activeTab !== 'all' ? activeTab : 'product'}')">
+            ➕ ${activeTab === 'unit' ? _txt("New Unit", "নতুন একক যোগ") : _txt("New Category / Unit", "নতুন ক্যাটাগরি / একক")}
           </button>
         </div>
       `
@@ -18094,39 +18113,39 @@ async function renderReports(container) {
 
         <!-- 4 Bilingual & Balanced KPI Summary Grid -->
         <div class="product-kpi-grid" style="margin: 0 16px 14px 16px; padding-top:4px;">
-          <!-- 1. Total Categories -->
+          <!-- 1. Total Categories & Units -->
           <div class="product-kpi-card" style="border-left: 4px solid var(--primary); padding:10px 12px;">
-            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">🏷️ ${_txt("ALL CLASSIFICATIONS", "মোট খাত ও ক্যাটাগরি / All")}</div>
-            <div class="product-kpi-val" style="color:var(--primary); font-size:18px; font-weight:800; font-family:monospace;">${totalCount} <span style="font-size:12px; font-weight:600; color:var(--text-muted);">${_txt("Total", "টি / Total")}</span></div>
+            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">🏷️ ${_txt("CATEGORIES & UNITS", "মোট ক্যাটাগরি ও একক")}</div>
+            <div class="product-kpi-val" style="color:var(--primary); font-size:18px; font-weight:800; font-family:monospace;">${totalCount} <span style="font-size:12px; font-weight:600; color:var(--text-muted);">${_txt("Total", "টি")}</span></div>
             <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.3;">
-              🛍️ ${typeCounts.product} পণ্য • 🚚 ${typeCounts.courier} কুরিয়ার • 🏷️ ${typeCounts.brand} ব্র্যান্ড
+              🛍️ ${typeCounts.product} ${_txt("Products", "পণ্য")} • ⚖️ ${typeCounts.unit} ${_txt("Units", "একক")} • 🏷️ ${typeCounts.brand} ${_txt("Brands", "ব্র্যান্ড")}
             </div>
           </div>
 
           <!-- 2. Product Categories Valuation -->
           <div class="product-kpi-card" style="border-left: 4px solid #3b82f6; padding:10px 12px;">
-            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">🛍️ ${_txt("PRODUCTS & INVENTORY", "পণ্য ও স্টক / Products & Stock")}</div>
-            <div class="product-kpi-val" style="color:#2563eb; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.product} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${products.length} Items)</span></div>
+            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">🛍️ ${_txt("PRODUCTS & INVENTORY", "পণ্য ও স্টক")}</div>
+            <div class="product-kpi-val" style="color:#2563eb; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.product} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${products.length} ${_txt("Items", "টি পণ্য")})</span></div>
             <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.3;">
-              ${_txt("Stock Valuation:", "মজুদ মূল্য / Value:")} <strong style="color:var(--text-main); font-family:monospace;">${formatMoney(totalStockValuation)}</strong>
+              ${_txt("Stock Valuation:", "মজুদ মূল্য:")} <strong style="color:var(--text-main); font-family:monospace;">${formatMoney(totalStockValuation)}</strong>
             </div>
           </div>
 
-          <!-- 3. Courier Delivery Partners -->
-          <div class="product-kpi-card" style="border-left: 4px solid #f59e0b; padding:10px 12px;">
-            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">🚚 ${_txt("COURIER PARTNERS", "কুরিয়ার ও পার্টনার / Couriers")}</div>
-            <div class="product-kpi-val" style="color:#d97706; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.courier} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${deliveries.length} Parcels)</span></div>
+          <!-- 3. Measurement Units -->
+          <div class="product-kpi-card" style="border-left: 4px solid #10b981; padding:10px 12px;">
+            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">⚖️ ${_txt("MEASUREMENT UNITS", "পরিমাপের একক")}</div>
+            <div class="product-kpi-val" style="color:#059669; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.unit} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${_txt("Active Units", "টি একক")})</span></div>
             <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.3;">
-              ${_txt("Active Couriers:", "সক্রিয় কুরিয়ার / Active:")} <strong style="color:#d97706; font-family:monospace;">${typeCounts.courier} টি চ্যানেল</strong>
+              🚚 ${_txt("Couriers:", "কুরিয়ার:")} <strong style="color:#d97706; font-family:monospace;">${typeCounts.courier} ${_txt("Channels", "টি")}</strong>
             </div>
           </div>
 
           <!-- 4. Expense & Budget Management -->
           <div class="product-kpi-card" style="border-left: 4px solid #ef4444; padding:10px 12px;">
-            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">💸 ${_txt("EXPENSE & BUDGETS", "দোকান খরচ / Expense & Budget")}</div>
-            <div class="product-kpi-val" style="color:#dc2626; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.expense} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${expenses.length} Vouchers)</span></div>
+            <div class="product-kpi-label" style="font-size:11px; font-weight:700;">💸 ${_txt("EXPENSE & BUDGETS", "দোকান খরচ ও বাজেট")}</div>
+            <div class="product-kpi-val" style="color:#dc2626; font-size:18px; font-weight:800; font-family:monospace;">${typeCounts.expense} <span style="font-size:11px; font-weight:600; color:var(--text-muted);">(${expenses.length} ${_txt("Vouchers", "ভাউচার")})</span></div>
             <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.3;">
-              ${_txt("Total Spent:", "নথিভুক্ত ব্যয় / Total:")} <strong style="color:#dc2626; font-family:monospace;">${formatMoney(totalExpAmount)}</strong>
+              ${_txt("Total Spent:", "নথিভুক্ত ব্যয়:")} <strong style="color:#dc2626; font-family:monospace;">${formatMoney(totalExpAmount)}</strong>
             </div>
           </div>
         </div>
@@ -18138,26 +18157,27 @@ async function renderReports(container) {
           <div class="category-mobile-controls" style="display:none; flex-direction:column; gap:10px;">
             <div>
               <label style="display:block; font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:4px;">
-                📂 ${_txt("Filter by Category Type:", "খাতের ধরন নির্বাচন করুন / Filter Type:")}
+                📂 ${_txt("Filter by Category or Unit Type:", "ক্যাটাগরি বা এককের ধরন নির্বাচন করুন:")}
               </label>
               <select id="mobileCategoryTabSelect" class="form-control" style="font-weight:700; font-size:13.5px; height:42px; border-radius:10px; border:1.5px solid var(--border-color); background:var(--bg-surface); padding-left:12px;" onchange="App.setCategoryTabFilter(this.value)">
-                <option value="all" ${activeTab === 'all' ? 'selected' : ''}>📋 ${_txt("All Categories", "সকল খাত ও ক্যাটাগরি / All")} (${totalCount})</option>
-                <option value="product" ${activeTab === 'product' ? 'selected' : ''}>🛍️ ${_txt("Product Categories", "পণ্যের ক্যাটাগরি / Products")} (${typeCounts.product})</option>
-                <option value="courier" ${activeTab === 'courier' ? 'selected' : ''}>🚚 ${_txt("Courier Partners", "কুরিয়ার ও ডেলিভারি / Couriers")} (${typeCounts.courier})</option>
-                <option value="brand" ${activeTab === 'brand' ? 'selected' : ''}>🏷️ ${_txt("Brands & Makers", "ব্র্যান্ড ও প্রস্তুতকারক / Brands")} (${typeCounts.brand})</option>
-                <option value="expense" ${activeTab === 'expense' ? 'selected' : ''}>💸 ${_txt("Expense Categories", "দোকান খরচের খাত / Expenses")} (${typeCounts.expense})</option>
-                <option value="income" ${activeTab === 'income' ? 'selected' : ''}>💰 ${_txt("Income Categories", "অন্যান্য আয়ের খাত / Income")} (${typeCounts.income})</option>
-                <option value="customer_tier" ${activeTab === 'customer_tier' ? 'selected' : ''}>👥 ${_txt("Customer Groups", "কাস্টমার গ্রুপ / Customers")} (${typeCounts.customer_tier})</option>
-                <option value="supplier_group" ${activeTab === 'supplier_group' ? 'selected' : ''}>🏭 ${_txt("Supplier Groups", "মহাজন গ্রুপ / Suppliers")} (${typeCounts.supplier_group})</option>
-                <option value="asset" ${activeTab === 'asset' ? 'selected' : ''}>🏢 ${_txt("Fixed Assets", "স্থায়ী সম্পদ খাত / Assets")} (${typeCounts.asset})</option>
-                <option value="damage_reason" ${activeTab === 'damage_reason' ? 'selected' : ''}>⚠️ ${_txt("Damage Reasons", "ড্যামেজের কারণ / Damage")} (${typeCounts.damage_reason})</option>
-                <option value="leave_type" ${activeTab === 'leave_type' ? 'selected' : ''}>👔 ${_txt("HR & Leaves", "স্টাফ ছুটির ধরন / Leaves")} (${typeCounts.leave_type})</option>
+                <option value="all" ${activeTab === 'all' ? 'selected' : ''}>📋 ${_txt("All Categories & Units", "সকল ক্যাটাগরি ও একক")} (${totalCount})</option>
+                <option value="product" ${activeTab === 'product' ? 'selected' : ''}>🛍️ ${_txt("Product Categories", "পণ্যের ক্যাটাগরি")} (${typeCounts.product})</option>
+                <option value="unit" ${activeTab === 'unit' ? 'selected' : ''}>⚖️ ${_txt("Measurement Units", "পরিমাপের একক")} (${typeCounts.unit})</option>
+                <option value="courier" ${activeTab === 'courier' ? 'selected' : ''}>🚚 ${_txt("Courier Partners", "কুরিয়ার ও ডেলিভারি")} (${typeCounts.courier})</option>
+                <option value="brand" ${activeTab === 'brand' ? 'selected' : ''}>🏷️ ${_txt("Brands & Makers", "ব্র্যান্ড ও প্রস্তুতকারক")} (${typeCounts.brand})</option>
+                <option value="expense" ${activeTab === 'expense' ? 'selected' : ''}>💸 ${_txt("Expense Categories", "দোকান খরচের খাত")} (${typeCounts.expense})</option>
+                <option value="income" ${activeTab === 'income' ? 'selected' : ''}>💰 ${_txt("Income Categories", "অন্যান্য আয়ের খাত")} (${typeCounts.income})</option>
+                <option value="customer_tier" ${activeTab === 'customer_tier' ? 'selected' : ''}>👥 ${_txt("Customer Groups", "কাস্টমার গ্রুপ")} (${typeCounts.customer_tier})</option>
+                <option value="supplier_group" ${activeTab === 'supplier_group' ? 'selected' : ''}>🏭 ${_txt("Supplier Groups", "মহাজন গ্রুপ")} (${typeCounts.supplier_group})</option>
+                <option value="asset" ${activeTab === 'asset' ? 'selected' : ''}>🏢 ${_txt("Fixed Assets", "স্থায়ী সম্পদ খাত")} (${typeCounts.asset})</option>
+                <option value="damage_reason" ${activeTab === 'damage_reason' ? 'selected' : ''}>⚠️ ${_txt("Damage Reasons", "ড্যামেজের কারণ")} (${typeCounts.damage_reason})</option>
+                <option value="leave_type" ${activeTab === 'leave_type' ? 'selected' : ''}>👔 ${_txt("HR & Leaves", "স্টাফ ছুটির ধরন")} (${typeCounts.leave_type})</option>
               </select>
             </div>
 
             <!-- Mobile Search Input Box -->
             <div style="position:relative; width:100%;">
-              <input type="text" id="categorySearchInputMobile" class="form-control" style="padding-left:36px; height:42px; border-radius:10px;" placeholder="${_txt('Search categories...', '🔍 ক্যাটাগরি বা খাত খুঁজুন...')}" value="${escapeHtml(window.App.categorySearchQuery || '')}" oninput="App.filterCategoriesList(this.value)" />
+              <input type="text" id="categorySearchInputMobile" class="form-control" style="padding-left:36px; height:42px; border-radius:10px;" placeholder="${_txt('Search categories or units...', '🔍 ক্যাটাগরি বা একক খুঁজুন...')}" value="${escapeHtml(window.App.categorySearchQuery || '')}" oninput="App.filterCategoriesList(this.value)" />
               <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none; font-size:14px;">🔍</span>
               ${window.App.categorySearchQuery ? `
                 <button type="button" onclick="App.filterCategoriesList('')" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-weight:700; font-size:16px;">✕</button>
@@ -18169,43 +18189,46 @@ async function renderReports(container) {
           <div class="category-desktop-controls" style="display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:nowrap;">
             <div class="filter-pills" style="display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; max-width:calc(100% - 280px);">
               <button class="pill ${activeTab === 'all' ? 'active' : ''}" onclick="App.setCategoryTabFilter('all')" style="white-space:nowrap; flex-shrink:0;">
-                📋 ${_txt("All", "সকল / All")} (${totalCount})
+                📋 ${_txt("All", "সকল")} (${totalCount})
               </button>
               <button class="pill ${activeTab === 'product' ? 'active' : ''}" onclick="App.setCategoryTabFilter('product')" style="white-space:nowrap; flex-shrink:0;">
-                🛍️ ${_txt("Products", "পণ্য / Products")} (${typeCounts.product})
+                🛍️ ${_txt("Products", "পণ্য")} (${typeCounts.product})
+              </button>
+              <button class="pill ${activeTab === 'unit' ? 'active' : ''}" onclick="App.setCategoryTabFilter('unit')" style="white-space:nowrap; flex-shrink:0;">
+                ⚖️ ${_txt("Units", "একক")} (${typeCounts.unit})
               </button>
               <button class="pill ${activeTab === 'courier' ? 'active' : ''}" onclick="App.setCategoryTabFilter('courier')" style="white-space:nowrap; flex-shrink:0;">
-                🚚 ${_txt("Couriers", "কুরিয়ার / Couriers")} (${typeCounts.courier})
+                🚚 ${_txt("Couriers", "কুরিয়ার")} (${typeCounts.courier})
               </button>
               <button class="pill ${activeTab === 'brand' ? 'active' : ''}" onclick="App.setCategoryTabFilter('brand')" style="white-space:nowrap; flex-shrink:0;">
-                🏷️ ${_txt("Brands", "ব্র্যান্ড / Brands")} (${typeCounts.brand})
+                🏷️ ${_txt("Brands", "ব্র্যান্ড")} (${typeCounts.brand})
               </button>
               <button class="pill ${activeTab === 'expense' ? 'active' : ''}" onclick="App.setCategoryTabFilter('expense')" style="white-space:nowrap; flex-shrink:0;">
-                💸 ${_txt("Expenses", "খরচ / Expenses")} (${typeCounts.expense})
+                💸 ${_txt("Expenses", "খরচ")} (${typeCounts.expense})
               </button>
               <button class="pill ${activeTab === 'income' ? 'active' : ''}" onclick="App.setCategoryTabFilter('income')" style="white-space:nowrap; flex-shrink:0;">
-                💰 ${_txt("Income", "আয় / Income")} (${typeCounts.income})
+                💰 ${_txt("Income", "আয়")} (${typeCounts.income})
               </button>
               <button class="pill ${activeTab === 'customer_tier' ? 'active' : ''}" onclick="App.setCategoryTabFilter('customer_tier')" style="white-space:nowrap; flex-shrink:0;">
-                👥 ${_txt("Customers", "কাস্টমার / Customers")} (${typeCounts.customer_tier})
+                👥 ${_txt("Customers", "কাস্টমার")} (${typeCounts.customer_tier})
               </button>
               <button class="pill ${activeTab === 'supplier_group' ? 'active' : ''}" onclick="App.setCategoryTabFilter('supplier_group')" style="white-space:nowrap; flex-shrink:0;">
-                🏭 ${_txt("Suppliers", "মহাজন / Suppliers")} (${typeCounts.supplier_group})
+                🏭 ${_txt("Suppliers", "মহাজন")} (${typeCounts.supplier_group})
               </button>
               <button class="pill ${activeTab === 'asset' ? 'active' : ''}" onclick="App.setCategoryTabFilter('asset')" style="white-space:nowrap; flex-shrink:0;">
-                🏢 ${_txt("Assets", "সম্পদ / Assets")} (${typeCounts.asset})
+                🏢 ${_txt("Assets", "সম্পদ")} (${typeCounts.asset})
               </button>
               <button class="pill ${activeTab === 'damage_reason' ? 'active' : ''}" onclick="App.setCategoryTabFilter('damage_reason')" style="white-space:nowrap; flex-shrink:0;">
-                ⚠️ ${_txt("Damage", "ড্যামেজ / Damage")} (${typeCounts.damage_reason})
+                ⚠️ ${_txt("Damage", "ড্যামেজ")} (${typeCounts.damage_reason})
               </button>
               <button class="pill ${activeTab === 'leave_type' ? 'active' : ''}" onclick="App.setCategoryTabFilter('leave_type')" style="white-space:nowrap; flex-shrink:0;">
-                👔 ${_txt("Leaves", "ছুটি / Leaves")} (${typeCounts.leave_type})
+                👔 ${_txt("Leaves", "ছুটি")} (${typeCounts.leave_type})
               </button>
             </div>
 
             <!-- Desktop Search Box -->
             <div style="min-width:240px; width:260px; position:relative; flex-shrink:0;">
-              <input type="text" id="categorySearchInputDesktop" class="form-control" style="padding-left:32px;" placeholder="${_txt('Search categories...', '🔍 ক্যাটাগরি খুঁজুন...')}" value="${escapeHtml(window.App.categorySearchQuery || '')}" oninput="App.filterCategoriesList(this.value)" />
+              <input type="text" id="categorySearchInputDesktop" class="form-control" style="padding-left:32px;" placeholder="${_txt('Search categories or units...', '🔍 ক্যাটাগরি বা একক খুঁজুন...')}" value="${escapeHtml(window.App.categorySearchQuery || '')}" oninput="App.filterCategoriesList(this.value)" />
               <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none; font-size:13px;">🔍</span>
               ${window.App.categorySearchQuery ? `
                 <button type="button" onclick="App.filterCategoriesList('')" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-weight:700;">✕</button>
@@ -18214,32 +18237,22 @@ async function renderReports(container) {
           </div>
         </div>
 
-        <!-- Top Pagination Bar -->
-        <div style="padding:10px 16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; font-size:12.5px; background:var(--bg-surface);">
-          <div style="color:var(--text-muted); font-weight:600;">
-            ${_txt("Showing", "প্রদর্শন:")} <strong>${totalFilteredCount > 0 ? (startIndex + 1) : 0} - ${Math.min(startIndex + itemsPerPage, totalFilteredCount)}</strong> ${_txt("of", "মোট")} <strong>${totalFilteredCount}</strong> ${_txt("categories", "টি")}
-          </div>
-          <div>
-            ${renderPagination("categories", totalFilteredCount)}
-          </div>
-        </div>
-
         <div id="categoriesListArea">
         ${paginatedCategories.length === 0 ? `
           <div style="text-align:center; padding:48px 16px;">
             <div style="font-size:36px; margin-bottom:12px;">📂</div>
             <div style="font-size:16px; font-weight:700; color:var(--text-color); margin-bottom:6px;">
-              ${_txt("No matching categories found", "মনোনীত ফিল্টারে কোনো ক্যাটাগরি পাওয়া যায়নি")}
+              ${_txt("No matching categories or units found", "মনোনীত ফিল্টারে কোনো ক্যাটাগরি বা একক পাওয়া যায়নি")}
             </div>
             <p style="font-size:13px; color:var(--text-muted); margin-bottom:18px; max-width:400px; margin-left:auto; margin-right:auto;">
-              ${_txt("Try searching with different keywords, change tab, or create a new category.", "অন্য ফিল্টার বা সার্চ দিয়ে চেষ্টা করুন অথবা নতুন ক্যাটাগরি তৈরি করুন।")}
+              ${_txt("Try searching with different keywords, change tab, or create a new item.", "অন্য ফিল্টার বা সার্চ দিয়ে চেষ্টা করুন অথবা নতুন ক্যাটাগরি বা একক তৈরি করুন।")}
             </p>
             <div style="display:inline-flex; gap:8px;">
               <button class="btn btn-outline" onclick="App.filterCategoriesList(''); App.setCategoryTabFilter('all');">
                 🔄 ${_txt("Reset Filter", "ফিল্টার রিসেট")}
               </button>
               <button class="btn btn-primary" onclick="App.openAddCategoryModal('${activeTab !== 'all' ? activeTab : 'product'}')">
-                ➕ ${_txt("Add Category", "নতুন ক্যাটাগরি যোগ")}
+                ➕ ${_txt("Add New", "নতুন যোগ করুন")}
               </button>
             </div>
           </div>
@@ -18250,7 +18263,7 @@ async function renderReports(container) {
               <thead>
                 <tr style="background:var(--bg-surface-alt);">
                   <th style="width:45px; text-align:center;">#</th>
-                  <th>${_txt("Category Name", "ক্যাটাগরি / খাতের নাম")}</th>
+                  <th>${_txt("Category / Unit Name", "ক্যাটাগরি / এককের নাম")}</th>
                   <th style="width:150px;">${_txt("Classification", "খাতের ধরন")}</th>
                   <th>${_txt("Connected Records & Status", "সংযুক্ত তথ্য ও আর্থিক স্থিতি")}</th>
                   <th style="width:130px; text-align:center;">${_txt("Budget / Lock", "বাজেট / স্ট্যাটাস")}</th>
@@ -18262,6 +18275,7 @@ async function renderReports(container) {
                   const type = c.type || 'product';
                   const typeMeta = {
                     product:        { icon: '🛍️', badge: 'bg-primary-lt c-primary', labelBn: 'পণ্যের ক্যাটাগরি', labelEn: 'Product Category' },
+                    unit:           { icon: '⚖️', badge: 'bg-success-lt c-success', labelBn: 'পরিমাপের একক', labelEn: 'Measurement Unit' },
                     courier:        { icon: '🚚', badge: 'bg-warning-lt c-warning', labelBn: 'কুরিয়ার ও ডেলিভারি', labelEn: 'Courier Partner' },
                     brand:          { icon: '🏷️', badge: 'bg-info-lt c-info',       labelBn: 'ব্র্যান্ড ও প্রস্তুতকারক', labelEn: 'Brand / Maker' },
                     expense:        { icon: '💸', badge: 'bg-danger-lt c-danger',   labelBn: 'দোকান খরচ খাত', labelEn: 'Expense Category' },
@@ -18278,7 +18292,18 @@ async function renderReports(container) {
                   let attachedCount = 0;
                   let budgetHtml = "";
 
-                  if (type === 'courier') {
+                  if (type === 'unit') {
+                    const st = unitStats[c.name] || { count: 0, qty: 0, val: 0 };
+                    attachedCount = st.count;
+                    connectedHtml = `
+                      <div style="font-weight:700; color:var(--text-main);">
+                        ${st.count > 0 ? (st.count + " " + _txt("Products using unit", "টি পণ্যে ব্যবহৃত")) : _txt("Unused unit", "অব্যবহৃত একক")}
+                      </div>
+                      <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                        ${_txt("Stock:", "মজুদ:")} <strong style="font-family:monospace;">${st.qty}</strong> • ${_txt("Valuation:", "মূল্য:")} <strong style="color:var(--primary); font-family:monospace;">${formatMoney(st.val)}</strong>
+                      </div>
+                    `;
+                  } else if (type === 'courier') {
                     const st = courierStats[c.name] || { count: 0, cod: 0, fee: 0 };
                     attachedCount = st.count;
                     connectedHtml = `
@@ -18374,6 +18399,8 @@ async function renderReports(container) {
                   }
 
                   const parentName = c.parentId && catMap[c.parentId] ? catMap[c.parentId] : null;
+                  const editAction = type === 'unit' ? `App.openEditUnitModal('${c.id}')` : `App.openEditCategoryModal('${c.id}')`;
+                  const deleteAction = type === 'unit' ? `App.deleteUnit('${c.id}')` : `App.deleteCategory('${c.id}')`;
 
                   return `
                     <tr style="border-bottom:1px solid var(--border-color);">
@@ -18398,26 +18425,26 @@ async function renderReports(container) {
                       </td>
                       <td style="text-align:center;">
                         ${budgetHtml || (attachedCount > 0 ? `
-                          <span class="badge" style="background:rgba(59,130,246,0.1); color:#2563eb; font-weight:700; font-size:10.5px; padding:2px 7px;" title="যুক্ত থাকা ডাটার কারণে সংরক্ষিত">
-                            🔒 ${attachedCount} লিংকড
+                          <span class="badge" style="background:rgba(59,130,246,0.1); color:#2563eb; font-weight:700; font-size:10.5px; padding:2px 7px;" title="${_txt('Protected due to linked records', 'যুক্ত থাকা ডাটার কারণে সংরক্ষিত')}">
+                            🔒 ${attachedCount} ${_txt("Linked", "লিংকড")}
                           </span>
                         ` : `
                           <span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-weight:700; font-size:10.5px; padding:2px 7px;">
-                            🟢 খালি
+                            🟢 ${_txt("Empty", "খালি")}
                           </span>
                         `)}
                       </td>
                       <td style="text-align:right; white-space:nowrap;">
                         <div style="display:inline-flex; gap:4px;">
                           ${attachedCount > 0 ? `
-                            <button class="btn btn-xs btn-outline" style="border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="App.showCategoryDrillDownModal('${c.id}')" title="সংযুক্ত সকল রেকর্ডের বিস্তারিত তালিকা">
-                              👁️ তালিকা (${attachedCount})
+                            <button class="btn btn-xs btn-outline" style="border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="App.showCategoryDrillDownModal('${c.id}')" title="${_txt('View connected records', 'সংযুক্ত সকল রেকর্ডের বিস্তারিত তালিকা')}">
+                              👁️ ${_txt("List", "তালিকা")} (${attachedCount})
                             </button>
                           ` : ''}
-                          <button class="btn btn-xs btn-outline" onclick="App.openEditCategoryModal('${c.id}')" title="${_txt('Edit Category', 'সম্পাদনা করুন')}">
+                          <button class="btn btn-xs btn-outline" onclick="${editAction}" title="${_txt('Edit', 'সম্পাদনা করুন')}">
                             ✏️ ${_txt("Edit", "এডিট")}
                           </button>
-                          <button class="btn btn-xs btn-outline c-danger" onclick="App.deleteCategory('${c.id}')" title="${_txt('Delete Category', 'মুছে ফেলুন')}">
+                          <button class="btn btn-xs btn-outline c-danger" onclick="${deleteAction}" title="${_txt('Delete', 'মুছে ফেলুন')}">
                             🗑️
                           </button>
                         </div>
@@ -18435,6 +18462,7 @@ async function renderReports(container) {
               const type = c.type || 'product';
               const typeMeta = {
                 product:        { icon: '🛍️', badge: 'bg-primary-lt c-primary', labelBn: 'পণ্য', labelEn: 'Product' },
+                unit:           { icon: '⚖️', badge: 'bg-success-lt c-success', labelBn: 'পরিমাপ একক', labelEn: 'Unit' },
                 courier:        { icon: '🚚', badge: 'bg-warning-lt c-warning', labelBn: 'কুরিয়ার', labelEn: 'Courier' },
                 brand:          { icon: '🏷️', badge: 'bg-info-lt c-info',       labelBn: 'ব্র্যান্ড', labelEn: 'Brand' },
                 expense:        { icon: '💸', badge: 'bg-danger-lt c-danger',   labelBn: 'খরচ', labelEn: 'Expense' },
@@ -18448,7 +18476,9 @@ async function renderReports(container) {
 
               let attachedCount = 0;
               let budgetHtml = "";
-              if (type === 'courier') {
+              if (type === 'unit') {
+                attachedCount = (unitStats[c.name] || { count: 0 }).count;
+              } else if (type === 'courier') {
                 attachedCount = (courierStats[c.name] || { count: 0 }).count;
               } else if (type === 'brand') {
                 attachedCount = (brandStats[c.name] || { count: 0 }).count;
@@ -18482,6 +18512,8 @@ async function renderReports(container) {
               }
 
               const parentName = c.parentId && catMap[c.parentId] ? catMap[c.parentId] : null;
+              const editAction = type === 'unit' ? `App.openEditUnitModal('${c.id}')` : `App.openEditCategoryModal('${c.id}')`;
+              const deleteAction = type === 'unit' ? `App.deleteUnit('${c.id}')` : `App.deleteCategory('${c.id}')`;
 
               return `
                 <div class="app-mobile-card" style="padding:12px 14px; border-radius:12px; border:1px solid var(--border-color); background:var(--bg-surface); box-shadow:0 1px 3px rgba(0,0,0,0.03);">
@@ -18498,11 +18530,11 @@ async function renderReports(container) {
                           <span class="stat-badge ${typeMeta.badge}" style="font-size:10px; padding:2px 6px; font-weight:700;">${isBn ? typeMeta.labelBn : typeMeta.labelEn}</span>
                           ${attachedCount > 0 ? `
                             <span class="badge" style="background:rgba(59,130,246,0.1); color:#2563eb; font-weight:700; font-size:10px; padding:2px 6px;">
-                              🔒 ${attachedCount} লিংকড
+                              🔒 ${attachedCount} ${_txt("Linked", "লিংকড")}
                             </span>
                           ` : `
                             <span class="badge" style="background:rgba(16,185,129,0.1); color:#10b981; font-weight:700; font-size:10px; padding:2px 6px;">
-                              🟢 খালি
+                              🟢 ${_txt("Empty", "খালি")}
                             </span>
                           `}
                           ${parentName ? `<span style="font-size:10.5px; color:var(--primary); font-weight:600;">↳ ${escapeHtml(parentName)}</span>` : ''}
@@ -18517,19 +18549,29 @@ async function renderReports(container) {
                   <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:8px; border-top:1px dashed var(--border-color); padding-top:8px;">
                     ${attachedCount > 0 ? `
                       <button type="button" class="btn btn-xs btn-outline" style="border-color:var(--primary); color:var(--primary); font-weight:700; min-height:30px;" onclick="App.showCategoryDrillDownModal('${c.id}')">
-                        👁️ তালিকা (${attachedCount})
+                        👁️ ${_txt("List", "তালিকা")} (${attachedCount})
                       </button>
                     ` : ''}
-                    <button type="button" class="btn btn-xs btn-outline" onclick="App.openEditCategoryModal('${c.id}')" style="font-weight:600; min-height:30px;">
+                    <button type="button" class="btn btn-xs btn-outline" onclick="${editAction}" style="font-weight:600; min-height:30px;">
                       ✏️ ${_txt("Edit", "এডিট")}
                     </button>
-                    <button type="button" class="btn btn-xs btn-outline c-danger" onclick="App.deleteCategory('${c.id}')" style="font-weight:600; min-height:30px;">
+                    <button type="button" class="btn btn-xs btn-outline c-danger" onclick="${deleteAction}" style="font-weight:600; min-height:30px;">
                       🗑️ ${_txt("Delete", "মুছুন")}
                     </button>
                   </div>
                 </div>
               `;
             }).join("")}
+          </div>
+
+          <!-- Bottom Pagination Bar -->
+          <div style="padding:12px 16px; border-top:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; font-size:12.5px; background:var(--bg-surface);">
+            <div style="color:var(--text-muted); font-weight:600;">
+              ${_txt("Showing", "প্রদর্শন:")} <strong>${totalFilteredCount > 0 ? (startIndex + 1) : 0} - ${Math.min(startIndex + itemsPerPage, totalFilteredCount)}</strong> ${_txt("of", "মোট")} <strong>${totalFilteredCount}</strong> ${_txt("items", "টি")}
+            </div>
+            <div>
+              ${renderPagination("categories", totalFilteredCount)}
+            </div>
           </div>
         `}
         </div>
@@ -18539,131 +18581,12 @@ async function renderReports(container) {
 
   window.renderCategories = renderCategories;
 
-  // VIEW 18: UNITS
+  // VIEW 18: UNITS (Unified into Categories & Units Hub)
   async function renderUnits(container) {
-    let units = await dbGetAll("units");
-    if (!units || units.length === 0) {
-      if (window.App && typeof window.App.seedDefaultUnits === "function") {
-        await window.App.seedDefaultUnits(true);
-        units = await dbGetAll("units");
-      }
+    if (window.App) {
+      window.App.categoryTab = "unit";
     }
-    const products = await dbGetAll("products");
-
-    const unitCounts = {};
-    products.forEach(p => {
-      if (p.unit) unitCounts[p.unit] = (unitCounts[p.unit] || 0) + 1;
-    });
-
-    const headerHtml = window.App.renderPageHeader({
-      title: _txt("Measurement Units", "পরিমাপের একক সমূহ"),
-      icon: "⚖️",
-      totalCount: units.length,
-      fallback: "products",
-      breadcrumbs: [
-        { label: _txt("Dashboard", "ড্যাশবোর্ড"), view: "dashboard" },
-        { label: _txt("Products", "পণ্য তালিকা"), view: "products" },
-        { label: _txt("Measurement Units", "পরিমাপের একক") }
-      ],
-      enablePrint: true,
-      enableExport: true,
-      printTableSelector: "#unitsTable",
-      exportTableSelector: "#unitsTable",
-      exportFilename: "measurement_units",
-      actionsHtml: `
-        <button class="btn btn-primary" onclick="App.openAddUnitModal()">
-          ➕ ${_txt("Add New Unit", "নতুন একক যোগ")}
-        </button>
-      `
-    });
-
-    container.innerHTML = `
-      <div class="card">
-        ${headerHtml}
-
-        ${units.length === 0 ? `
-          <div style="text-align:center; padding:48px 16px;">
-            <div style="font-size:36px; margin-bottom:12px;">⚖️</div>
-            <div style="font-size:16px; font-weight:700; color:var(--text-color); margin-bottom:6px;">
-              ${_txt("No measurement units found", "কোনো পরিমাপের একক পাওয়া যায়নি")}
-            </div>
-            <button class="btn btn-primary" onclick="App.openAddUnitModal()" style="margin-top:10px;">
-              ➕ ${_txt("Add New Unit", "নতুন একক যোগ করুন")}
-            </button>
-          </div>
-        ` : `
-          <!-- Desktop Table View -->
-          <div class="responsive-desktop-table table-container">
-            <table id="unitsTable">
-              <thead>
-                <tr>
-                  <th style="width:50px;">#</th>
-                  <th>${_txt("Unit Name", "এককের নাম")}</th>
-                  <th>${_txt("Used in Products", "ব্যবহারকারী পণ্য")}</th>
-                  <th style="text-align:right; width:170px;">${_txt("Actions", "অ্যাকশন")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${units.map((u, idx) => {
-                  const count = unitCounts[u.name] || 0;
-                  return `
-                    <tr>
-                      <td style="color:var(--text-muted); font-weight:600;">${idx + 1}</td>
-                      <td style="font-weight:700;">⚖️ ${u.name}</td>
-                      <td style="font-size:12px; color:var(--text-muted); font-weight:600;">
-                        ${count > 0 ? (count + " টি পণ্যে ব্যবহৃত") : "অব্যবহৃত"}
-                      </td>
-                      <td style="text-align:right; white-space:nowrap;">
-                        <button class="btn btn-xs btn-outline" style="margin-right:6px;" onclick="App.openEditUnitModal('${u.id}')" title="সম্পাদনা করুন">
-                          ✏️ ${_txt("Edit", "এডিট")}
-                        </button>
-                        <button class="btn btn-xs btn-outline c-danger" onclick="App.deleteUnit('${u.id}')" title="মুছে ফেলুন">
-                          🗑️ ${_txt("Delete", "মুছুন")}
-                        </button>
-                      </td>
-                    </tr>
-                  `;
-                }).join("")}
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Mobile Cards View -->
-          <div class="responsive-mobile-list" style="padding:12px;">
-            ${units.map((u, idx) => {
-              const count = unitCounts[u.name] || 0;
-              return `
-                <div class="app-mobile-card" style="cursor:default;">
-                  <div class="amc-header">
-                    <div class="amc-header-left">
-                      <div class="amc-icon" style="font-size:22px;">
-                        ⚖️
-                      </div>
-                      <div class="amc-title-box">
-                        <div class="amc-title" style="font-size:15px; font-weight:700; color:var(--text-color); margin-bottom:4px;">
-                          ${u.name}
-                        </div>
-                        <div class="amc-subtitle" style="font-size:12px; color:var(--text-muted); font-weight:600;">
-                          ${count > 0 ? (count + " টি পণ্যে ব্যবহৃত") : "অব্যবহৃত"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div style="display:flex; gap:8px; justify-content:flex-end; border-top:1px dashed var(--border-color); padding-top:8px; margin-top:4px;">
-                    <button class="btn btn-xs btn-outline" onclick="App.openEditUnitModal('${u.id}')" style="padding:5px 12px; font-weight:600; display:flex; align-items:center; gap:4px;">
-                      ✏️ ${_txt("Edit", "এডিট")}
-                    </button>
-                    <button class="btn btn-xs btn-outline c-danger" onclick="App.deleteUnit('${u.id}')" style="padding:5px 12px; font-weight:600; display:flex; align-items:center; gap:4px;">
-                      🗑️ ${_txt("Delete", "মুছুন")}
-                    </button>
-                  </div>
-                </div>
-              `;
-            }).join("")}
-          </div>
-        `}
-      </div>
-    `;
+    return await renderCategories(container);
   }
 
   // VIEW 19: BACKUP & RESTORE DATA HUB (ADVANCED MODULAR CONTROL CENTER)
@@ -20825,9 +20748,11 @@ async function renderReports(container) {
       case "security":
         return App.navigate("security", true, isOverrideAllowed);
       case "categories":
+        App.categoryTab = "all";
         return App.navigate("categories", true, isOverrideAllowed);
       case "units":
-        return App.navigate("units", true, isOverrideAllowed);
+        App.categoryTab = "unit";
+        return App.navigate("categories", true, isOverrideAllowed);
       case "backup":
         return App.navigate("backup", true, isOverrideAllowed);
       case "recycle_bin":
@@ -21561,29 +21486,15 @@ async function renderReports(container) {
           {
             id: "categories",
             icon: "📑",
-            titleEn: "Categories",
-            titleBn: "ক্যাটাগরি",
-            subEn: "Product categories, expense heads & income classifications",
-            subBn: "পণ্য, আয় এবং খরচের খাত/ক্যাটাগরি ব্যবস্থাপনা",
+            titleEn: "Categories & Units",
+            titleBn: "ক্যাটাগরি ও একক",
+            subEn: "Product categories, measurement units, brands, expense & income heads",
+            subBn: "পণ্যের ক্যাটাগরি, পরিমাপের একক, ব্র্যান্ড এবং আয়-ব্যয়ের খাত ব্যবস্থাপনা",
             nav: "App.navigate('categories')",
-            keywords: "categories brands category ক্যাটাগরি বিভাগ ব্র্যান্ড গ্রুপ",
+            keywords: "categories units measurement kg liter piece brands category ক্যাটাগরি ও একক পরিমাপের একক কেজি লিটার পিস বিভাগ ব্র্যান্ড গ্রুপ",
             subs: [
               { labelEn: "📑 All Categories", labelBn: "📑 সকল ক্যাটাগরি", action: "categories" },
               { labelEn: "⚖️ Measurement Units", labelBn: "⚖️ পরিমাপের একক", action: "units" }
-            ]
-          },
-          {
-            id: "units",
-            icon: "⚖️",
-            titleEn: "Measurement Units",
-            titleBn: "পরিমাপের একক",
-            subEn: "Manage product units (Piece, Kg, Liter, Box, Dozen, etc.)",
-            subBn: "পণ্যের পরিমাপের একক (পিস, কেজি, লিটার, বক্স ইত্যাদি)",
-            nav: "App.navigate('units')",
-            keywords: "units measurement kg liter piece পরিমাপের একক কেজি লিটার পিস",
-            subs: [
-              { labelEn: "⚖️ Unit List", labelBn: "⚖️ পরিমাপের একক তালিকা", action: "units" },
-              { labelEn: "📦 Product Catalog", labelBn: "📦 পণ্য ক্যাটালগ", action: "products" }
             ]
           },
           {
@@ -21747,31 +21658,32 @@ async function renderReports(container) {
             `).join("")}
           </div>
 
-          <!-- Modern Developer Profile Card in Drawer -->
-          <div class="more-dev-wrap" data-keywords="developer info tufaful ambia email whatsapp ডেভেলপার তথ্য ডেভলপার যোগাযোগ ইমেইল হোয়াটসঅ্যাপ" style="margin-top:10px;">
+          <!-- Simple Interactive SVG Developer Info Item in Drawer -->
+          <div class="more-dev-wrap" data-keywords="developer info tufaful ambia email whatsapp ডেভেলপার তথ্য ডেভলপার যোগাযোগ ইমেইল হোয়াটসঅ্যাপ" style="margin-top:8px;">
             <div class="more-dev-card"
                  onclick="App.openDeveloperInfoModal()"
-                 style="position:relative; overflow:hidden; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 13px; border-radius:12px; background:linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%); border:1px solid var(--border-color); box-shadow:0 4px 14px rgba(15,23,42,0.05); cursor:pointer; transition:all 0.2s ease;"
-                 onmouseover="this.style.borderColor='var(--primary)'; this.style.transform='translateY(-1px)'; this.style.boxShadow='0 8px 20px rgba(37,99,235,0.12)';"
-                 onmouseout="this.style.borderColor='var(--border-color)'; this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 14px rgba(15,23,42,0.05)';">
+                 style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:10px; background:var(--bg-surface); border:1px solid var(--border-color); cursor:pointer; transition:all 0.18s ease;"
+                 onmouseover="this.style.borderColor='var(--primary)'; this.style.background='var(--bg-surface-alt)';"
+                 onmouseout="this.style.borderColor='var(--border-color)'; this.style.background='var(--bg-surface)';">
               <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-                <div style="position:relative; width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, #2563eb, #06b6d4); padding:2px; flex-shrink:0; box-shadow:0 4px 10px rgba(37,99,235,0.25);">
-                  <div style="width:100%; height:100%; border-radius:8px; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:900; color:var(--primary); letter-spacing:-0.3px;">TA</div>
-                  <span style="position:absolute; bottom:-2px; right:-2px; width:13px; height:13px; border-radius:50%; background:#10b981; color:#fff; font-size:8px; font-weight:900; display:flex; align-items:center; justify-content:center; border:1.5px solid var(--bg-surface);">✓</span>
+                <div style="width:34px; height:34px; border-radius:8px; background:var(--primary-lt); color:var(--primary); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                  </svg>
                 </div>
                 <div style="display:flex; flex-direction:column; min-width:0;">
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <span style="font-size:13px; font-weight:800; color:var(--text-main); white-space:nowrap; letter-spacing:-0.2px;">Tufaful Ambia</span>
-                    <span style="font-size:8.5px; font-weight:800; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; padding:1.5px 6px; border-radius:5px; letter-spacing:0.4px;">DEV</span>
-                  </div>
-                  <span style="font-size:10.5px; font-weight:600; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                    ${isBn ? "সফটওয়্যার ডেভেলপার ও সিস্টেম আর্কিটেক্ট" : "Software Developer & System Architect"}
+                  <span style="font-size:13px; font-weight:700; color:var(--text-main); white-space:nowrap;">
+                    ${isBn ? "ডেভেলপার তথ্য" : "Developer Info"}
+                  </span>
+                  <span style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    Tufaful Ambia
                   </span>
                 </div>
               </div>
-              <div style="width:26px; height:26px; border-radius:8px; background:var(--primary-lt); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0;">
-                ❯
-              </div>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted); flex-shrink:0;">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
             </div>
           </div>
         </div>
@@ -28020,7 +27932,9 @@ async function renderReports(container) {
           await renderCategories(container);
           break;
         case "units":
-          await renderUnits(container);
+          this.categoryTab = "unit";
+          this.currentView = "categories";
+          await renderCategories(container);
           break;
         case "backup":
         case "backup_restore":
@@ -42179,13 +42093,13 @@ async function renderReports(container) {
       if (!silent) {
         showToast(added > 0 ? (added + " টি পরিমাপ একক যোগ করা হয়েছে!") : "সকল ডিফল্ট একক ইতিমধ্যে বিদ্যমান আছে।", "success");
       }
-      if (this.currentView === "units") renderUnits(document.getElementById("viewContainer"));
+      if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
     },
 
     setCategoryTabFilter(tab) {
       this.categoryTab = tab;
       setActivePage("categories", 1);
-      if (this.currentView === "categories") renderCategories(document.getElementById("viewContainer"));
+      if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
     },
 
     filterCategoriesList(q) {
@@ -42193,7 +42107,7 @@ async function renderReports(container) {
       setActivePage("categories", 1);
       if (typeof window !== "undefined" && window.event && (window.event.isComposing || this._isImeComposing)) return;
       const activeElId = document.activeElement ? document.activeElement.id : null;
-      if (this.currentView === "categories") {
+      if (this.currentView === "categories" || this.currentView === "units") {
         const p = renderCategories(document.getElementById("viewContainer"));
         if (p && typeof p.then === "function") {
           p.then(() => {
@@ -42219,15 +42133,16 @@ async function renderReports(container) {
     async confirmRestoreDefaultCategories() {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
       const ok = await this.confirmAction({
-        title: isBn ? "ডিফল্ট ক্যাটাগরি রিস্টোর / সিড" : "Restore Default Categories",
-        message: isBn ? "আপনি কি অ্যাপ্লিকেশনের মানসম্মত ২০+ পণ্য, ১২টি খরচ ও ৬টি আয়ের ডিফল্ট ক্যাটাগরি সিড বা নিশ্চিত করতে চান?" : "Do you want to restore and ensure all standard default product, expense, and income categories exist?",
-        details: isBn ? "আপনার তৈরি করা কোনো কাস্টম ক্যাটাগরি মুছে যাবে না, শুধুমাত্র বাদ পড়া স্ট্যান্ডার্ড ক্যাটাগরিগুলো তালিকায় যুক্ত হবে।" : "Your custom categories will NOT be deleted; missing standard categories will simply be added.",
+        title: isBn ? "ডিফল্ট ক্যাটাগরি ও একক রিস্টোর / সিড" : "Restore Default Categories & Units",
+        message: isBn ? "আপনি কি অ্যাপ্লিকেশনের মানসম্মত ২০+ পণ্য, পরিমাপের একক, খরচ ও আয়ের ডিফল্ট ক্যাটাগরি সিড বা নিশ্চিত করতে চান?" : "Do you want to restore and ensure all standard default categories and measurement units exist?",
+        details: isBn ? "আপনার তৈরি করা কোনো কাস্টম ক্যাটাগরি বা একক মুছে যাবে না, শুধুমাত্র বাদ পড়া স্ট্যান্ডার্ড আইটেমগুলো তালিকায় যুক্ত হবে।" : "Your custom categories and units will NOT be deleted; missing standard items will simply be added.",
         confirmText: isBn ? "🔄 হ্যাঁ, সিড করুন" : "Yes, Restore",
         cancelText: isBn ? "বাতিল" : "Cancel",
         icon: "🏷️"
       });
       if (!ok) return;
       await this.seedDefaultCategories(false);
+      await this.seedDefaultUnits(true);
     },
 
     openQuickAddCategoryModal(defaultType = 'product') {
@@ -42323,7 +42238,7 @@ async function renderReports(container) {
 
     openAddCategoryModal(initialType = null) {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
-      this.guardAction("category.manage", isBn ? "নতুন ক্যাটাগরি তৈরি (Create Category)" : "Create Category", async () => {
+      this.guardAction("category.manage", isBn ? "নতুন ক্যাটাগরি / একক তৈরি (Create Category / Unit)" : "Create Category / Unit", async () => {
         const defaultType = initialType || (this.categoryTab && this.categoryTab !== 'all' ? this.categoryTab : 'product');
         const allCategories = await dbGetAll("categories") || [];
         const potentialParents = allCategories.filter(c => c.type === defaultType || (!c.type && defaultType === 'product'));
@@ -42331,31 +42246,32 @@ async function renderReports(container) {
         const html = `
           <div class="modal-header">
             <h3 style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">
-              <span>➕ নতুন ক্যাটাগরি / খাত যোগ করুন</span>
+              <span>➕ ${_txt("Add New Category / Unit", "নতুন ক্যাটাগরি / একক যোগ করুন")}</span>
             </h3>
             <button class="icon-btn" onclick="App.closeModal()">✕</button>
           </div>
           <div class="modal-body">
             <form onsubmit="event.preventDefault(); App.submitAddCategory();">
               <div class="form-group" style="margin-bottom:12px;">
-                <label class="form-label" style="font-weight:700;">${isBn ? 'ক্যাটাগরি বা খাতের ধরন *:' : 'Category / Classification Type *:'}</label>
+                <label class="form-label" style="font-weight:700;">${isBn ? 'ক্যাটাগরি বা এককের ধরন *:' : 'Category / Unit Type *:'}</label>
                 <select id="newCatType" class="form-control" style="font-weight:700;" onchange="App.onCategoryTypeChange(this.value)">
-                  <option value="product" ${defaultType === 'product' ? 'selected' : ''}>🛍️ পণ্যের ক্যাটাগরি (Product Category)</option>
-                  <option value="courier" ${defaultType === 'courier' ? 'selected' : ''}>🚚 কুরিয়ার ও ডেলিভারি পার্টনার (Courier / Delivery)</option>
-                  <option value="brand" ${defaultType === 'brand' ? 'selected' : ''}>🏷️ পণ্যের ব্র্যান্ড ও প্রস্তুতকারক (Brand / Manufacturer)</option>
-                  <option value="expense" ${defaultType === 'expense' ? 'selected' : ''}>💸 দোকান খরচের খাত (Expense Category)</option>
-                  <option value="income" ${defaultType === 'income' ? 'selected' : ''}>💰 অন্যান্য আয়ের খাত (Income Category)</option>
-                  <option value="customer_tier" ${defaultType === 'customer_tier' ? 'selected' : ''}>👥 কাস্টমার গ্রুপ / টিয়ার (Customer Tier / Group)</option>
-                  <option value="supplier_group" ${defaultType === 'supplier_group' ? 'selected' : ''}>🏭 মহাজন / সাপ্লায়ার গ্রুপ (Supplier Group)</option>
-                  <option value="asset" ${defaultType === 'asset' ? 'selected' : ''}>🏢 স্থায়ী সম্পদ খাত (Fixed Asset Category)</option>
-                  <option value="damage_reason" ${defaultType === 'damage_reason' ? 'selected' : ''}>⚠️ ড্যামেজ ও ফেরতের কারণ (Damage / Return Reason)</option>
-                  <option value="leave_type" ${defaultType === 'leave_type' ? 'selected' : ''}>👔 স্টাফ ছুটির ধরন (Staff Leave Type)</option>
+                  <option value="product" ${defaultType === 'product' ? 'selected' : ''}>🛍️ ${_txt("Product Category", "পণ্যের ক্যাটাগরি")}</option>
+                  <option value="unit" ${defaultType === 'unit' ? 'selected' : ''}>⚖️ ${_txt("Measurement Unit", "পরিমাপের একক (পিস, কেজি, লিটার...)")}</option>
+                  <option value="courier" ${defaultType === 'courier' ? 'selected' : ''}>🚚 ${_txt("Courier / Delivery Partner", "কুরিয়ার ও ডেলিভারি পার্টনার")}</option>
+                  <option value="brand" ${defaultType === 'brand' ? 'selected' : ''}>🏷️ ${_txt("Brand / Manufacturer", "পণ্যের ব্র্যান্ড ও প্রস্তুতকারক")}</option>
+                  <option value="expense" ${defaultType === 'expense' ? 'selected' : ''}>💸 ${_txt("Expense Category", "দোকান খরচের খাত")}</option>
+                  <option value="income" ${defaultType === 'income' ? 'selected' : ''}>💰 ${_txt("Income Category", "অন্যান্য আয়ের খাত")}</option>
+                  <option value="customer_tier" ${defaultType === 'customer_tier' ? 'selected' : ''}>👥 ${_txt("Customer Tier / Group", "কাস্টমার গ্রুপ / টিয়ার")}</option>
+                  <option value="supplier_group" ${defaultType === 'supplier_group' ? 'selected' : ''}>🏭 ${_txt("Supplier Group", "মহাজন / সাপ্লায়ার গ্রুপ")}</option>
+                  <option value="asset" ${defaultType === 'asset' ? 'selected' : ''}>🏢 ${_txt("Fixed Asset Category", "স্থায়ী সম্পদ খাত")}</option>
+                  <option value="damage_reason" ${defaultType === 'damage_reason' ? 'selected' : ''}>⚠️ ${_txt("Damage / Return Reason", "ড্যামেজ ও ফেরতের কারণ")}</option>
+                  <option value="leave_type" ${defaultType === 'leave_type' ? 'selected' : ''}>👔 ${_txt("Staff Leave Type", "স্টাফ ছুটির ধরন")}</option>
                 </select>
               </div>
 
               <div class="form-group" style="margin-bottom:12px;">
-                <label class="form-label" style="font-weight:700;">${isBn ? 'ক্যাটাগরি / খাতের নাম *:' : 'Name *:'}</label>
-                <input type="text" id="newCatName" class="form-control" placeholder="${isBn ? 'যেমন: সুন্দরবন কুরিয়ার / কোমল পানীয় / দোকান ভাড়া' : 'e.g. Sundarban Courier / Beverages'}" required autofocus />
+                <label class="form-label" style="font-weight:700;">${isBn ? 'ক্যাটাগরি / এককের নাম *:' : 'Name *:'}</label>
+                <input type="text" id="newCatName" class="form-control" placeholder="${defaultType === 'unit' ? (isBn ? 'যেমন: পিস, কেজি, লিটার, ডজন, কার্টুন' : 'e.g. Piece, Kg, Liter, Dozen, Box') : (isBn ? 'যেমন: সুন্দরবন কুরিয়ার / কোমল পানীয় / দোকান ভাড়া' : 'e.g. Sundarban Courier / Beverages')}" required autofocus />
               </div>
 
               <!-- Optional Monthly Budget Limit for Expenses -->
@@ -42368,7 +42284,7 @@ async function renderReports(container) {
               </div>
 
               <!-- Optional Parent Category for Sub-Categories -->
-              <div id="newCatParentGroup" class="form-group" style="margin-bottom:12px;">
+              <div id="newCatParentGroup" class="form-group" style="display:${defaultType === 'unit' ? 'none' : 'block'}; margin-bottom:12px;">
                 <label class="form-label" style="font-weight:700;">📂 ${isBn ? 'প্যারেন্ট ক্যাটাগরি (সাব-ক্যাটাগরি হলে বেছে নিন):' : 'Parent Category (Optional for Sub-Category):'}</label>
                 <select id="newCatParentId" class="form-control">
                   <option value="">${isBn ? '-- মূল ক্যাটাগরি (কোনো প্যারেন্ট নেই) --' : '-- Top-Level Category --'}</option>
@@ -42383,7 +42299,7 @@ async function renderReports(container) {
 
               <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button type="button" class="btn btn-outline" onclick="App.closeModal()">${isBn ? 'বাতিল' : 'Cancel'}</button>
-                <button type="submit" class="btn btn-primary" style="font-weight:700;">➕ ${isBn ? 'সংরক্ষণ করুন' : 'Save Category'}</button>
+                <button type="submit" class="btn btn-primary" style="font-weight:700;">➕ ${isBn ? 'সংরক্ষণ করুন' : 'Save'}</button>
               </div>
             </form>
           </div>
@@ -42397,11 +42313,15 @@ async function renderReports(container) {
       if (budgetGrp) {
         budgetGrp.style.display = (newType === 'expense') ? 'block' : 'none';
       }
+      const parentGrp = document.getElementById("newCatParentGroup");
+      if (parentGrp) {
+        parentGrp.style.display = (newType === 'unit') ? 'none' : 'block';
+      }
     },
 
     async submitAddCategory() {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
-      this.guardAction("category.manage", isBn ? "নতুন ক্যাটাগরি তৈরি (Create Category)" : "Create Category", async () => {
+      this.guardAction("category.manage", isBn ? "নতুন ক্যাটাগরি / একক তৈরি (Create Category / Unit)" : "Create Category / Unit", async () => {
         const name = document.getElementById("newCatName")?.value.trim();
         const type = document.getElementById("newCatType")?.value || "product";
         const parentId = document.getElementById("newCatParentId")?.value || null;
@@ -42409,9 +42329,30 @@ async function renderReports(container) {
         const notes = (document.getElementById("newCatNotes")?.value || "").trim();
 
         if (!name) {
-          showToast(isBn ? "ক্যাটাগরির নাম প্রদান করুন!" : "Please provide category name!", "warning");
+          showToast(isBn ? "নাম প্রদান করুন!" : "Please provide a name!", "warning");
           return;
         }
+
+        if (type === "unit") {
+          const existingUnits = await dbGetAll("units") || [];
+          if (existingUnits.some(u => (u.name || "").toLowerCase().trim() === name.toLowerCase())) {
+            showToast(isBn ? "এই নামের পরিমাপ একক ইতিমধ্যেই বিদ্যমান আছে!" : "Measurement unit already exists!", "warning");
+            return;
+          }
+          const unitId = "UNIT-" + Date.now();
+          await dbPut("units", {
+            id: unitId,
+            name,
+            notes: notes || null,
+            createdAt: new Date().toISOString()
+          });
+          this.closeModal();
+          showToast(isBn ? "নতুন পরিমাপ একক যুক্ত হয়েছে!" : "Measurement unit added successfully!", "success");
+          if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
+          if (this.currentView === "products") renderProducts(document.getElementById("viewContainer"));
+          return;
+        }
+
         const existing = await dbGetAll("categories") || [];
         if (existing.some(c => (c.name || "").toLowerCase().trim() === name.toLowerCase())) {
           showToast(isBn ? "এই নামের ক্যাটাগরি ইতিমধ্যেই বিদ্যমান আছে!" : "Category already exists!", "warning");
@@ -42429,7 +42370,7 @@ async function renderReports(container) {
         });
         this.closeModal();
         showToast(isBn ? "নতুন ক্যাটাগরি যুক্ত হয়েছে!" : "Category added successfully!", "success");
-        if (this.currentView === "categories") renderCategories(document.getElementById("viewContainer"));
+        if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
         if (this.currentView === "products") renderProducts(document.getElementById("viewContainer"));
         if (this.currentView === "pos") renderPos(document.getElementById("viewContainer"));
       });
@@ -42775,10 +42716,16 @@ async function renderReports(container) {
       });
     },
 
-    // Category Drill-Down Modal to view all connected records across modules
+    // Category & Unit Drill-Down Modal to view all connected records across modules
     async showCategoryDrillDownModal(catId) {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
-      const cat = await dbGet("categories", catId);
+      let cat = await dbGet("categories", catId);
+      if (!cat) {
+        const u = await dbGet("units", catId);
+        if (u) {
+          cat = { id: u.id, name: u.name, type: "unit" };
+        }
+      }
       if (!cat) return;
 
       const type = cat.type || 'product';
@@ -42786,7 +42733,22 @@ async function renderReports(container) {
       let rowsHtml = "";
       let summaryText = "";
 
-      if (type === 'courier') {
+      if (type === 'unit') {
+        const prods = (await dbGetAll("products") || []).filter(p => p.unit === cat.name);
+        title = `⚖️ পরিমাপ এককের পণ্য: ${cat.name} (${prods.length} টি)`;
+        const totalVal = prods.reduce((s, p) => s + ((parseFloat(p.currentStock) || 0) * (parseFloat(p.purchasePrice || p.costPrice) || 0)), 0);
+        summaryText = `মোট পণ্য: ${prods.length} টি • স্টক ভ্যালুয়েশন: ${formatMoney(totalVal)}`;
+        rowsHtml = prods.map((p, i) => `
+          <tr>
+            <td style="text-align:center;">${i + 1}</td>
+            <td><strong>${escapeHtml(p.name)}</strong></td>
+            <td>${escapeHtml(p.category || '-')}</td>
+            <td>${formatMoney(p.purchasePrice || 0)}</td>
+            <td style="font-weight:700;">${p.currentStock || 0} ${p.unit || ''}</td>
+            <td style="font-weight:700; color:var(--primary); font-family:monospace;">${formatMoney(p.sellingPrice || 0)}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="6" style="text-align:center; padding:16px;">কোনো পণ্য নেই</td></tr>`;
+      } else if (type === 'courier') {
         const delivs = (await dbGetAll("deliveries") || []).filter(d => d.courierName === cat.name);
         title = `🚚 কুরিয়ার পার্সেল: ${cat.name} (${delivs.length} টি)`;
         const totalCod = delivs.reduce((s, d) => s + (parseFloat(d.codAmount) || 0), 0);
@@ -42965,8 +42927,8 @@ async function renderReports(container) {
       const id = "UNIT-" + Date.now();
       await dbPut("units", { id, name });
       this.closeModal();
-      showToast("পরিমাপ একক যুক্ত হয়েছে!", "success");
-      if (this.currentView === "units") renderUnits(document.getElementById("viewContainer"));
+      showToast(_txt("Measurement unit added!", "পরিমাপ একক যুক্ত হয়েছে!"), "success");
+      if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
     },
 
     async openEditUnitModal(id) {
@@ -42974,22 +42936,27 @@ async function renderReports(container) {
       const u = await dbGet("units", id);
       if (!u) return;
       const safeName = (u.name || "").replace(/"/g, '&quot;');
+      const safeNotes = (u.notes || "").replace(/"/g, '&quot;');
       const html = `
         <div class="modal-header">
           <h3 style="font-size:16px; font-weight:700; display:flex; align-items:center; gap:8px;">
-            <span>✏️ পরিমাপ একক সম্পাদনা</span>
+            <span>✏️ ${_txt("Edit Measurement Unit", "পরিমাপ একক সম্পাদনা")}</span>
           </h3>
           <button class="icon-btn" onclick="App.closeModal()">✕</button>
         </div>
         <div class="modal-body">
           <form onsubmit="event.preventDefault(); App.submitEditUnit('${u.id}');">
-            <div class="form-group" style="margin-bottom:16px;">
-              <label class="form-label" style="font-weight:600;">এককের নাম *:</label>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label" style="font-weight:700;">${_txt("Unit Name *:", "এককের নাম *:")}</label>
               <input type="text" id="editUnitName" class="form-control" value="${safeName}" required />
             </div>
+            <div class="form-group" style="margin-bottom:16px;">
+              <label class="form-label" style="font-weight:700;">📝 ${_txt("Description / Notes:", "বিবরণ / নোট:")}</label>
+              <input type="text" id="editUnitNotes" class="form-control" value="${safeNotes}" placeholder="${_txt('Optional notes', 'ঐচ্ছিক নোট বা বিবরণ')}" />
+            </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
-              <button type="button" class="btn btn-outline" onclick="App.closeModal()">বাতিল</button>
-              <button type="submit" class="btn btn-primary" style="font-weight:700;">💾 সংরক্ষণ করুন</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal()">${_txt("Cancel", "বাতিল")}</button>
+              <button type="submit" class="btn btn-primary" style="font-weight:700;">💾 ${_txt("Save Changes", "সংরক্ষণ করুন")}</button>
             </div>
           </form>
         </div>
@@ -43001,9 +42968,10 @@ async function renderReports(container) {
       const u = await dbGet("units", id);
       if (!u) return;
       const newName = document.getElementById("editUnitName").value.trim();
+      const notes = (document.getElementById("editUnitNotes")?.value || "").trim();
       if (!newName) return;
       const oldName = u.name;
-      await dbPut("units", { id: u.id, name: newName });
+      await dbPut("units", { ...u, id: u.id, name: newName, notes: notes || null, updatedAt: new Date().toISOString() });
       if (oldName !== newName) {
         const prods = await dbGetAll("products");
         for (const p of prods) {
@@ -43014,8 +42982,8 @@ async function renderReports(container) {
         }
       }
       this.closeModal();
-      showToast("একক সফলভাবে আপডেট করা হয়েছে!", "success");
-      if (this.currentView === "units") renderUnits(document.getElementById("viewContainer"));
+      showToast(_txt("Measurement unit updated successfully!", "একক সফলভাবে আপডেট করা হয়েছে!"), "success");
+      if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
       if (this.currentView === "products") renderProducts(document.getElementById("viewContainer"));
     },
 
@@ -43040,22 +43008,22 @@ async function renderReports(container) {
         const html = `
           <div class="modal-header">
             <h3 style="font-size:16px; font-weight:700; color:var(--danger); display:flex; align-items:center; gap:8px;">
-              <span>🗑️ পরিমাপ একক মুছে ফেলার নিশ্চিতকরণ</span>
+              <span>🗑️ ${_txt("Confirm Delete Unit", "পরিমাপ একক মুছে ফেলার নিশ্চিতকরণ")}</span>
             </h3>
             <button class="icon-btn" onclick="App.closeModal()">✕</button>
           </div>
           <div class="modal-body" style="text-align:center; padding:20px 16px;">
             <div style="font-size:42px; margin-bottom:12px;">⚖️</div>
             <div style="font-size:16px; font-weight:700; color:var(--text-color); margin-bottom:8px;">
-              আপনি কি নিশ্চিত "${safeName}" এককটি মুছে ফেলতে চান?
+              ${isBn ? `আপনি কি নিশ্চিত "${safeName}" এককটি মুছে ফেলতে চান?` : `Are you sure you want to delete unit "${safeName}"?`}
             </div>
             <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">
-              এই পরিমাপ একক তালিকা থেকে মুছে ফেলা হবে।
+              ${isBn ? "এই পরিমাপ একক তালিকা থেকে মুছে ফেলা হবে।" : "This measurement unit will be moved to the Recycle Bin."}
             </p>
             <div style="display:flex; gap:10px; justify-content:center;">
-              <button type="button" class="btn btn-outline" onclick="App.closeModal()">বাতিল</button>
+              <button type="button" class="btn btn-outline" onclick="App.closeModal()">${_txt("Cancel", "বাতিল")}</button>
               <button type="button" class="btn btn-danger" style="background:#dc2626; color:#fff; font-weight:700;" onclick="App.executeDeleteUnit('${u.id}')">
-                🗑️ হ্যাঁ, নিশ্চিত মুছুন
+                🗑️ ${_txt("Yes, Delete", "হ্যাঁ, নিশ্চিত মুছুন")}
               </button>
             </div>
           </div>
@@ -43070,7 +43038,7 @@ async function renderReports(container) {
       const prods = await dbGetAll("products");
       const attachedCount = prods.filter(p => p.unit === u.name).length;
       if (attachedCount > 0) {
-        showToast("যুক্ত থাকা পণ্য থাকায় পরিমাপ এককটি মুছে ফেলা সম্ভব নয়!", "danger");
+        showToast(_txt("Cannot delete unit with linked products!", "যুক্ত থাকা পণ্য থাকায় পরিমাপ এককটি মুছে ফেলা সম্ভব নয়!"), "danger");
         return;
       }
       await this.moveToRecycleBin("units", u, {
@@ -43079,8 +43047,8 @@ async function renderReports(container) {
         summary: `এককের নাম: ${u.name || id}`
       });
       this.closeModal();
-      showToast("পরিমাপ একক রিসাইকেল বিনে পাঠানো হয়েছে (৩০ দিন সংরক্ষিত থাকবে)", "info");
-      if (this.currentView === "units") renderUnits(document.getElementById("viewContainer"));
+      showToast(_txt("Measurement unit moved to Recycle Bin (retained for 30 days)", "পরিমাপ একক রিসাইকেল বিনে পাঠানো হয়েছে (৩০ দিন সংরক্ষিত থাকবে)"), "info");
+      if (this.currentView === "categories" || this.currentView === "units") renderCategories(document.getElementById("viewContainer"));
     },
 
     renderBarcodePreview(val) {
@@ -53091,152 +53059,124 @@ window.App.deletePurchase = async function(purchaseId) {
   })();
 
     // =========================================================================
-    // DEVELOPER & SUPPORT INFO MODAL (MODERN GLASSMORPHISM & BADGES)
+    // DEVELOPER & SUPPORT INFO MODAL (SIMPLE & INTERACTIVE SVG ICONS)
     // =========================================================================
     window.App.openDeveloperInfoModal = function() {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
       const html = `
-        <div class="dev-profile-modal-shell" style="position:relative; overflow:hidden; border-radius:20px; background:var(--bg-surface); border:1px solid var(--border-color); box-shadow:0 28px 60px -15px rgba(15,23,42,0.45); animation:devModalFadeZoom 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; max-width:410px; margin:0 auto;">
-          <style>
-            @keyframes devModalFadeZoom {
-              0% { opacity: 0; transform: scale(0.94) translateY(12px); }
-              100% { opacity: 1; transform: scale(1) translateY(0); }
-            }
-            @keyframes devRingPulse {
-              0%, 100% { box-shadow: 0 10px 28px rgba(37,99,235,0.35), 0 0 0 0 rgba(59,130,246,0.3); }
-              50% { box-shadow: 0 12px 32px rgba(6,182,212,0.4), 0 0 0 6px rgba(59,130,246,0); }
-            }
-            .dev-contact-action-card {
-              flex: 1;
-              min-width: 88px;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              gap: 8px;
-              padding: 14px 10px;
-              border-radius: 14px;
-              background: var(--bg-surface-alt);
-              border: 1px solid var(--border-color);
-              text-decoration: none;
-              transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-              cursor: pointer;
-              position: relative;
-              overflow: hidden;
-            }
-            .dev-contact-action-card:hover {
-              transform: translateY(-4px);
-              border-color: var(--primary);
-              box-shadow: 0 12px 24px -6px rgba(37,99,235,0.2);
-              background: var(--bg-surface);
-            }
-            .dev-contact-icon-circle {
-              width: 46px;
-              height: 46px;
-              border-radius: 13px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #ffffff;
-              transition: transform 0.22s ease;
-            }
-            .dev-contact-action-card:hover .dev-contact-icon-circle {
-              transform: scale(1.08);
-            }
-          </style>
-
-          <!-- Top Executive Hero Banner -->
-          <div style="position:relative; height:108px; background:linear-gradient(135deg, #0f172a 0%, #1e3a8a 52%, #0284c7 100%); overflow:hidden;">
-            <!-- Subtle Tech Grid Pattern Overlay -->
-            <div style="position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1px); background-size:16px 16px; opacity:0.65; pointer-events:none;"></div>
-            <div style="position:absolute; top:-40px; right:-20px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle, rgba(56,189,248,0.38) 0%, rgba(56,189,248,0) 70%); pointer-events:none;"></div>
-            <div style="position:absolute; bottom:-50px; left:-20px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle, rgba(16,185,129,0.28) 0%, rgba(16,185,129,0) 70%); pointer-events:none;"></div>
-
-            <!-- Top Bar inside Hero Banner -->
-            <div style="position:relative; z-index:3; display:flex; justify-content:space-between; align-items:center; padding:13px 16px;">
-              <div style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:8px; background:rgba(15,23,42,0.45); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.16); color:#f8fafc; font-size:11.5px; font-weight:800; letter-spacing:0.2px;">
-                <span>👨‍💻</span>
-                <span>${isBn ? "ডেভেলপার তথ্য" : "Developer Info"}</span>
-              </div>
-              <button class="icon-btn" onclick="App.closeModal()" style="width:30px; height:30px; border-radius:8px; background:rgba(15,23,42,0.45); color:#ffffff; border:1px solid rgba(255,255,255,0.18); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; font-size:13px;" title="${isBn ? "বন্ধ করুন" : "Close"}">✕</button>
-            </div>
+        <style>
+          .dev-simple-svg-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 14px 8px;
+            border-radius: 12px;
+            background: var(--bg-surface-alt);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+          }
+          .dev-simple-svg-btn:hover {
+            transform: translateY(-2px);
+            background: var(--bg-surface);
+            border-color: var(--primary);
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+          }
+          .dev-simple-svg-btn:active {
+            transform: translateY(0) scale(0.97);
+          }
+          .dev-simple-svg-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s ease;
+          }
+          .dev-simple-svg-btn:hover .dev-simple-svg-icon {
+            transform: scale(1.08);
+          }
+        </style>
+        <div class="modal-header">
+          <h3 class="modal-title" style="font-size:15.5px; font-weight:700; display:flex; align-items:center; gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            <span>${isBn ? "ডেভেলপার তথ্য" : "Developer Info"}</span>
+          </h3>
+          <button class="icon-btn" onclick="App.closeModal()" title="${isBn ? "বন্ধ করুন" : "Close"}">✕</button>
+        </div>
+        <div class="modal-body" style="padding:18px; text-align:center;">
+          <div style="width:52px; height:52px; border-radius:14px; background:var(--primary-lt); color:var(--primary); border:1px solid rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; margin:0 auto 10px;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
           </div>
 
-          <div class="modal-body" style="padding:0 22px 22px; text-align:center; position:relative; z-index:2; margin-top:-44px;">
-            <!-- Overlapping Avatar with Animated Ring & Verified Badge -->
-            <div style="position:relative; width:88px; height:88px; margin:0 auto 12px;">
-              <div style="width:100%; height:100%; border-radius:24px; background:linear-gradient(135deg, #2563eb, #3b82f6, #06b6d4); padding:3.5px; border:3px solid var(--bg-surface); animation:devRingPulse 3.2s infinite ease-in-out;">
-                <div style="width:100%; height:100%; border-radius:18px; background:var(--bg-surface); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:900; background-image:linear-gradient(135deg, rgba(37,99,235,0.08), rgba(6,182,212,0.08)); color:var(--primary); letter-spacing:-0.8px;">
-                  TA
-                </div>
-              </div>
-              <div style="position:absolute; bottom:-3px; right:-3px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:900; border:2.5px solid var(--bg-surface); box-shadow:0 4px 10px rgba(16,185,129,0.45);" title="${isBn ? "ভেরিফায়েড ডেভেলপার" : "Verified Developer"}">
-                ✓
-              </div>
-            </div>
-
-            <!-- Developer Name & Role Badge -->
-            <h2 style="font-size:21px; font-weight:900; color:var(--text-main); margin:0 0 6px; letter-spacing:-0.4px;">
-              Tufaful Ambia
-            </h2>
-            <div style="display:inline-flex; align-items:center; gap:6px; background:var(--primary-lt); color:var(--primary); padding:5px 13px; border-radius:8px; font-size:11.5px; font-weight:800; margin-bottom:20px; border:1px solid rgba(37,99,235,0.22);">
-              <span>⭐</span>
-              <span>${isBn ? "সফটওয়্যার ডেভেলপার ও সিস্টেম আর্কিটেক্ট" : "Software Developer & System Architect"}</span>
-            </div>
-
-            <!-- 3 Interactive Contact Cards (Exact Existing Links Preserved) -->
-            <div style="display:flex; justify-content:center; align-items:stretch; gap:10px; margin:0 0 20px;">
-              <!-- Website / GitHub Action -->
-              <a href="https://github.com/tufaful"
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 class="dev-contact-action-card"
-                 title="${isBn ? "প্রজেক্ট ওয়েবসাইট ভিজিট করুন" : "Visit Project Website"}"
-                 aria-label="Website">
-                <div class="dev-contact-icon-circle" style="background:linear-gradient(135deg, #0f172a, #334155); box-shadow:0 6px 16px rgba(15,23,42,0.28);">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                  </svg>
-                </div>
-                <span style="font-size:11.5px; font-weight:800; color:var(--text-main);">${isBn ? "ওয়েবসাইট" : "Website"}</span>
-              </a>
-
-              <!-- Email Action -->
-              <a href="mailto:ambia.inbox@gmail.com"
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 class="dev-contact-action-card"
-                 title="${isBn ? "ইমেইল পাঠান" : "Send Email"}"
-                 aria-label="Email">
-                <div class="dev-contact-icon-circle" style="background:linear-gradient(135deg, #3b82f6, #1d4ed8); box-shadow:0 6px 16px rgba(37,99,235,0.32);">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
-                  </svg>
-                </div>
-                <span style="font-size:11.5px; font-weight:800; color:var(--text-main);">${isBn ? "ইমেইল" : "Email"}</span>
-              </a>
-
-              <!-- WhatsApp Action -->
-              <a href="https://wa.me/tufaful"
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 class="dev-contact-action-card"
-                 title="${isBn ? "হোয়াটসঅ্যাপে মেসেজ পাঠান" : "Send WhatsApp Message"}"
-                 aria-label="WhatsApp">
-                <div class="dev-contact-icon-circle" style="background:linear-gradient(135deg, #25D366, #128C7E); box-shadow:0 6px 16px rgba(37,211,102,0.32);">
-                  <svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.01-1.24-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.45-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.01 2.57.13.17 1.75 2.67 4.24 3.75.59.26 1.05.41 1.41.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.59.21-1.09.15-1.19-.06-.1-.22-.16-.47-.28"/>
-                  </svg>
-                </div>
-                <span style="font-size:11.5px; font-weight:800; color:var(--text-main);">${isBn ? "হোয়াটসঅ্যাপ" : "WhatsApp"}</span>
-              </a>
-            </div>
-
-            <!-- Dismiss Button -->
-            <button class="btn btn-primary btn-block" onclick="App.closeModal()" style="height:42px; border-radius:11px; font-weight:800; font-size:13.5px; box-shadow:0 6px 18px rgba(37,99,235,0.25);">
-              ${isBn ? "ঠিক আছে" : "OK"}
-            </button>
+          <div style="font-size:18px; font-weight:800; color:var(--text-main); margin-bottom:3px;">
+            Tufaful Ambia
           </div>
+          <div style="font-size:12.5px; color:var(--text-muted); margin-bottom:18px;">
+            ${isBn ? "সফটওয়্যার ডেভেলপার" : "Software Developer"}
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
+            <a href="https://github.com/tufaful"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="dev-simple-svg-btn"
+               title="${isBn ? "ওয়েবসাইট ভিজিট করুন" : "Visit Website"}"
+               aria-label="Website">
+              <div class="dev-simple-svg-icon" style="background:rgba(15,23,42,0.08); color:var(--text-main);">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="2" y1="12" x2="22" y2="12"></line>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                </svg>
+              </div>
+              <span style="font-size:12px; font-weight:700;">${isBn ? "ওয়েবসাইট" : "Website"}</span>
+            </a>
+
+            <a href="mailto:ambia.inbox@gmail.com"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="dev-simple-svg-btn"
+               title="${isBn ? "ইমেইল পাঠান" : "Send Email"}"
+               aria-label="Email">
+              <div class="dev-simple-svg-icon" style="background:rgba(37,99,235,0.1); color:#2563eb;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+                </svg>
+              </div>
+              <span style="font-size:12px; font-weight:700;">${isBn ? "ইমেইল" : "Email"}</span>
+            </a>
+
+            <a href="https://wa.me/tufaful"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="dev-simple-svg-btn"
+               title="${isBn ? "হোয়াটসঅ্যাপে মেসেজ পাঠান" : "Send WhatsApp Message"}"
+               aria-label="WhatsApp">
+              <div class="dev-simple-svg-icon" style="background:rgba(22,163,74,0.12); color:#16a34a;">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24m4.52 11.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.06-.39-2.01-1.24-.74-.66-1.24-1.48-1.39-1.73-.14-.25-.02-.39.11-.51.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.45-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.87.85-.87 2.07 0 1.22.89 2.4 1.01 2.57.13.17 1.75 2.67 4.24 3.75.59.26 1.05.41 1.41.53.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.59.21-1.09.15-1.19-.06-.1-.22-.16-.47-.28"/>
+                </svg>
+              </div>
+              <span style="font-size:12px; font-weight:700;">${isBn ? "হোয়াটসঅ্যাপ" : "WhatsApp"}</span>
+            </a>
+          </div>
+
+          <button class="btn btn-outline btn-block" onclick="App.closeModal()" style="height:38px; font-weight:700;">
+            ${isBn ? "বন্ধ করুন" : "Close"}
+          </button>
         </div>
       `;
       window.App.openModal(html);
