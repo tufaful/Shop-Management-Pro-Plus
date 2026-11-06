@@ -256,15 +256,33 @@
           window.App._pwaManifestReady = true;
         } catch (err) {}
 
-        // Register Service Worker (/sw.js) for true offline reload resilience
-        if ("serviceWorker" in navigator) {
-          navigator.serviceWorker.register("/sw.js", { scope: "/" }).then(function(reg) {
-            window.App._serviceWorkerReady = true;
-            window.App._swRegistration = reg;
-          }).catch(function() {
-            window.App._serviceWorkerReady = false;
-          });
-        }
+        // Single-File Offline Cache Storage & Safe Service Worker Resilience
+        (async function setupSingleFileOfflineResilience() {
+          try {
+            if ("caches" in window) {
+              var cache = await window.caches.open("smp-singlefile-offline-v1");
+              await cache.put(window.location.pathname || "/", new Response(document.documentElement.outerHTML, {
+                headers: { "Content-Type": "text/html; charset=utf-8" }
+              }));
+              window.App._offlineCacheReady = true;
+            }
+          } catch (cacheErr) {}
+
+          if ("serviceWorker" in navigator) {
+            try {
+              var swCheck = await fetch("/sw.js", { method: "HEAD", cache: "no-store" }).catch(function() { return null; });
+              if (swCheck && swCheck.ok && (swCheck.headers.get("content-type") || "").indexOf("javascript") !== -1) {
+                var reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+                window.App._serviceWorkerReady = true;
+                window.App._swRegistration = reg;
+              } else {
+                window.App._serviceWorkerReady = Boolean(window.App._offlineCacheReady);
+              }
+            } catch (swErr) {
+              window.App._serviceWorkerReady = Boolean(window.App._offlineCacheReady);
+            }
+          }
+        })();
 
         // Handle PWA Install Prompt & Standalone Detection
         var isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
@@ -3739,7 +3757,7 @@ body {
 
   // DB & Storage Engine
   var DB_NAME = "ShopManagementProDB";
-  var DB_VERSION = 18;
+  var DB_VERSION = 19;
   var STORES = [
     "users",
     "products",
@@ -3995,6 +4013,40 @@ body {
     });
   }
 
+  var STORE_INDEX_SCHEMA = {
+    products: ["category", "barcode", "sku", "name"],
+    sales: ["invoiceNo", "customerId", "date", "paymentMethod"],
+    invoices: ["invoiceNo", "customerId", "date", "paymentMethod"],
+    saleItems: ["invoiceNo", "productId"],
+    purchases: ["purchaseNo", "supplierId", "date"],
+    purchaseItems: ["purchaseId", "productId"],
+    customers: ["phone", "name"],
+    suppliers: ["phone", "name"],
+    customerPayments: ["customerId", "date", "invoiceNo"],
+    supplierPayments: ["supplierId", "date"],
+    income: ["category", "date"],
+    expenses: ["category", "date"],
+    stockMovements: ["productId", "referenceId", "type", "date"],
+    bankTransactions: ["accountId", "refNo", "type", "date"],
+    salesReturns: ["invoiceNo", "customerId", "date"],
+    purchaseReturns: ["purchaseId", "supplierId", "date"],
+    auditLogs: ["date", "action"],
+    auditLog: ["date", "action"],
+    generalLedger: ["accountCode", "date", "referenceId"],
+    journalEntries: ["date", "referenceId"]
+  };
+
+  function ensureStoreIndexes(os, storeName) {
+    if (!os || !STORE_INDEX_SCHEMA[storeName]) return;
+    STORE_INDEX_SCHEMA[storeName].forEach((idxField) => {
+      try {
+        if (!os.indexNames.contains(idxField)) {
+          os.createIndex(idxField, idxField, { unique: false });
+        }
+      } catch (idxErr) {}
+    });
+  }
+
   function openIndexedDbAtVersion(version) {
     return new Promise((resolve, reject) => {
       try {
@@ -4004,9 +4056,16 @@ body {
         const req = version ? window.indexedDB.open(DB_NAME, version) : window.indexedDB.open(DB_NAME);
         req.onupgradeneeded = (e) => {
           const db = e.target.result;
+          const upgradeTx = e.target.transaction;
           STORES.forEach((store) => {
+            let os = null;
             if (!db.objectStoreNames.contains(store)) {
-              try { db.createObjectStore(store, { keyPath: "id" }); } catch(err) {}
+              try { os = db.createObjectStore(store, { keyPath: "id" }); } catch(err) {}
+            } else if (upgradeTx) {
+              try { os = upgradeTx.objectStore(store); } catch(err) {}
+            }
+            if (os) {
+              ensureStoreIndexes(os, store);
             }
           });
         };
@@ -4061,10 +4120,10 @@ body {
       const existingInfo = await probeExistingDb();
       let targetVer = DB_VERSION;
       if (existingInfo && existingInfo.version) {
-        if (existingInfo.allStores) {
+        if (existingInfo.allStores && existingInfo.version >= DB_VERSION) {
           targetVer = existingInfo.version;
         } else {
-          targetVer = Math.max(DB_VERSION, existingInfo.version) + 1;
+          targetVer = Math.max(DB_VERSION, existingInfo.version + (existingInfo.allStores ? 0 : 1));
         }
       }
 
@@ -4410,83 +4469,200 @@ body {
         const tx = db.transaction(storeList, "readwrite");
         const stagedFallbackOps = [];
         let explicitAbortErr = null;
+        let isSettled = false;
         const origAbort = tx.abort.bind(tx);
         tx.abort = (reason) => {
           explicitAbortErr = reason || new Error("Transaction aborted");
           try { origAbort(); } catch (e) {}
         };
 
+        const recoverViaBufferedAtomic = async () => {
+          if (isSettled) return;
+          isSettled = true;
+          try {
+            const memStores = {};
+            for (const s of storeList) {
+              const allItems = await dbGetAll(s);
+              memStores[s] = Array.isArray(allItems) ? JSON.parse(JSON.stringify(allItems)) : [];
+            }
+            const bufferedWrites = [];
+            let memAborted = false;
+            let memAbortReason = null;
+            const memMockTx = {
+              abort: (reason) => {
+                memAborted = true;
+                memAbortReason = reason || new Error("Transaction aborted");
+                throw memAbortReason;
+              }
+            };
+            const memTxStore = (storeName) => {
+              if (!storeList.includes(storeName)) {
+                throw new Error("Store not in transaction scope: " + storeName);
+              }
+              return {
+                get: (key) => {
+                  const list = memStores[storeName] || [];
+                  return Promise.resolve(list.find(i => String(i && i.id) === String(key)) || null);
+                },
+                getAll: () => {
+                  return Promise.resolve([...(memStores[storeName] || [])]);
+                },
+                put: (item) => {
+                  if (!item || typeof item !== "object") {
+                    return Promise.reject(new Error("Invalid item for store " + storeName));
+                  }
+                  if (storeName === "customers" || storeName === "suppliers") {
+                    if (item.dueBalance !== undefined) item.due = item.dueBalance;
+                    else if (item.due !== undefined) item.dueBalance = item.due;
+                  }
+                  if (storeName === "auditLogs" || storeName === "auditLog") {
+                    normalizeAuditLogEntry(item);
+                    if (item.referenceId || item.targetId) {
+                      markAuditRefLogged(item.referenceId || item.targetId);
+                    }
+                  }
+                  const list = memStores[storeName];
+                  const idx = list.findIndex(i => String(i && i.id) === String(item.id));
+                  if (idx !== -1) list[idx] = item;
+                  else list.unshift(item);
+                  bufferedWrites.push({ op: "put", store: storeName, item });
+                  return Promise.resolve(item);
+                },
+                delete: (key) => {
+                  memStores[storeName] = (memStores[storeName] || []).filter(i => String(i && i.id) !== String(key) && String(i && i.invoiceNo) !== String(key));
+                  bufferedWrites.push({ op: "delete", store: storeName, key });
+                  return Promise.resolve(true);
+                },
+                clear: () => {
+                  memStores[storeName] = [];
+                  bufferedWrites.push({ op: "clear", store: storeName });
+                  return Promise.resolve(true);
+                }
+              };
+            };
+
+            const cbRes = await callback(memTxStore, memMockTx);
+            if (memAborted) throw (memAbortReason || new Error("Transaction aborted"));
+
+            await new Promise((commitRes, commitRej) => {
+              const commitTx = db.transaction(storeList, "readwrite");
+              for (const w of bufferedWrites) {
+                const os = commitTx.objectStore(w.store);
+                if (w.op === "put") os.put(w.item);
+                else if (w.op === "delete") os.delete(w.key);
+                else if (w.op === "clear") os.clear();
+              }
+              commitTx.oncomplete = () => commitRes();
+              commitTx.onerror = () => commitRej(commitTx.error || new Error("Atomic commit failed"));
+              commitTx.onabort = () => commitRej(commitTx.error || new Error("Atomic commit aborted"));
+            });
+
+            for (const change of bufferedWrites) {
+              if (change.op === "put") {
+                const list = getFallbackStore(change.store);
+                const idx = list.findIndex(i => String(i && i.id) === String(change.item.id));
+                if (idx !== -1) list[idx] = change.item;
+                else list.unshift(change.item);
+                saveFallbackStore(change.store, list);
+              } else if (change.op === "delete") {
+                const list = getFallbackStore(change.store).filter(i => String(i && i.id) !== String(change.key) && String(i && i.invoiceNo) !== String(change.key));
+                saveFallbackStore(change.store, list);
+              } else if (change.op === "clear") {
+                saveFallbackStore(change.store, []);
+              }
+            }
+            if (window.AccountingEngine && !window.AccountingEngine._suppressHooks) {
+              await window.AccountingEngine.onTransactionCommitted(bufferedWrites);
+            }
+            resolve(cbRes);
+          } catch (recErr) {
+            reject(recErr);
+          }
+        };
+
         const txStore = (storeName) => {
           const store = tx.objectStore(storeName);
           return {
             get: (key) => new Promise((res, rej) => {
-              const req = store.get(key);
-              req.onsuccess = () => res(req.result || null);
-              req.onerror = () => rej(req.error);
+              try {
+                const req = store.get(key);
+                req.onsuccess = () => res(req.result || null);
+                req.onerror = () => rej(req.error);
+              } catch (err) { rej(err); }
             }),
             getAll: () => new Promise((res, rej) => {
-              if (typeof store.getAll === "function") {
-                const req = store.getAll();
-                req.onsuccess = () => res(req.result || []);
-                req.onerror = () => rej(req.error);
-              } else {
-                const results = [];
-                const req = store.openCursor();
-                req.onsuccess = (e) => {
-                  const cursor = e.target.result;
-                  if (cursor) {
-                    results.push(cursor.value);
-                    cursor.continue();
-                  } else {
-                    res(results);
-                  }
-                };
-                req.onerror = () => rej(req.error);
-              }
+              try {
+                if (typeof store.getAll === "function") {
+                  const req = store.getAll();
+                  req.onsuccess = () => res(req.result || []);
+                  req.onerror = () => rej(req.error);
+                } else {
+                  const results = [];
+                  const req = store.openCursor();
+                  req.onsuccess = (e) => {
+                    const cursor = e.target.result;
+                    if (cursor) {
+                      results.push(cursor.value);
+                      cursor.continue();
+                    } else {
+                      res(results);
+                    }
+                  };
+                  req.onerror = () => rej(req.error);
+                }
+              } catch (err) { rej(err); }
             }),
             put: (item) => new Promise((res, rej) => {
-              if (!item || typeof item !== "object") {
-                return rej(new Error("Invalid item for store " + storeName));
-              }
-              if (storeName === "customers") {
-                if (item.dueBalance !== undefined) item.due = item.dueBalance;
-                else if (item.due !== undefined) item.dueBalance = item.due;
-              } else if (storeName === "suppliers") {
-                if (item.dueBalance !== undefined) item.due = item.dueBalance;
-                else if (item.due !== undefined) item.dueBalance = item.due;
-              }
-              if (storeName === "auditLogs" || storeName === "auditLog") {
-                normalizeAuditLogEntry(item);
-                if (item.referenceId || item.targetId) {
-                  markAuditRefLogged(item.referenceId || item.targetId);
+              try {
+                if (!item || typeof item !== "object") {
+                  return rej(new Error("Invalid item for store " + storeName));
                 }
-              }
-              const req = store.put(item);
-              req.onsuccess = () => {
-                stagedFallbackOps.push({ op: "put", store: storeName, item });
-                res(req.result);
-              };
-              req.onerror = () => rej(req.error);
+                if (storeName === "customers") {
+                  if (item.dueBalance !== undefined) item.due = item.dueBalance;
+                  else if (item.due !== undefined) item.dueBalance = item.due;
+                } else if (storeName === "suppliers") {
+                  if (item.dueBalance !== undefined) item.due = item.dueBalance;
+                  else if (item.due !== undefined) item.dueBalance = item.due;
+                }
+                if (storeName === "auditLogs" || storeName === "auditLog") {
+                  normalizeAuditLogEntry(item);
+                  if (item.referenceId || item.targetId) {
+                    markAuditRefLogged(item.referenceId || item.targetId);
+                  }
+                }
+                const req = store.put(item);
+                req.onsuccess = () => {
+                  stagedFallbackOps.push({ op: "put", store: storeName, item });
+                  res(req.result);
+                };
+                req.onerror = () => rej(req.error);
+              } catch (err) { rej(err); }
             }),
             delete: (key) => new Promise((res, rej) => {
-              const req = store.delete(key);
-              req.onsuccess = () => {
-                stagedFallbackOps.push({ op: "delete", store: storeName, key });
-                res(true);
-              };
-              req.onerror = () => rej(req.error);
+              try {
+                const req = store.delete(key);
+                req.onsuccess = () => {
+                  stagedFallbackOps.push({ op: "delete", store: storeName, key });
+                  res(true);
+                };
+                req.onerror = () => rej(req.error);
+              } catch (err) { rej(err); }
             }),
             clear: () => new Promise((res, rej) => {
-              const req = store.clear();
-              req.onsuccess = () => {
-                stagedFallbackOps.push({ op: "clear", store: storeName });
-                res(true);
-              };
-              req.onerror = () => rej(req.error);
+              try {
+                const req = store.clear();
+                req.onsuccess = () => {
+                  stagedFallbackOps.push({ op: "clear", store: storeName });
+                  res(true);
+                };
+                req.onerror = () => rej(req.error);
+              } catch (err) { rej(err); }
             })
           };
         };
         tx.oncomplete = async () => {
+          if (isSettled) return;
+          isSettled = true;
           try {
             for (const change of stagedFallbackOps) {
               if (change.op === "put") {
@@ -4510,12 +4686,28 @@ body {
           }
           resolve();
         };
-        tx.onerror = () => reject(explicitAbortErr || tx.error || new Error("Transaction error"));
-        tx.onabort = () => reject(explicitAbortErr || tx.error || new Error("Transaction aborted"));
+        tx.onerror = () => {
+          if (isSettled) return;
+          isSettled = true;
+          reject(explicitAbortErr || tx.error || new Error("Transaction error"));
+        };
+        tx.onabort = () => {
+          if (isSettled) return;
+          isSettled = true;
+          reject(explicitAbortErr || tx.error || new Error("Transaction aborted"));
+        };
         Promise.resolve().then(() => callback(txStore, tx)).catch((err) => {
+          if (!explicitAbortErr && err && (err.name === "TransactionInactiveError" || err.name === "InvalidStateError" || String(err.message || "").includes("TransactionInactiveError"))) {
+            try { origAbort(); } catch (e) {}
+            recoverViaBufferedAtomic();
+            return;
+          }
           explicitAbortErr = err;
           try { origAbort(); } catch (e) {}
-          reject(err);
+          if (!isSettled) {
+            isSettled = true;
+            reject(err);
+          }
         });
       } catch (err) {
         if (err && (err.name === "NotFoundError" || String(err.message || "").includes("not in transaction"))) {
