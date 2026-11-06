@@ -2995,6 +2995,34 @@ body {
   </script>
 
 <style>
+  /* High-Performance 60 FPS Compositing & Smooth Rendering */
+  .modal-overlay, #globalModal, #pinLockScreen, #securityRecoveryModal, .print-preview-modal-overlay {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    will-change: opacity;
+  }
+  .modal-dialog, .print-preview-modal-dialog {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    will-change: transform, opacity;
+  }
+  .pos-item-card {
+    contain: layout style;
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+  }
+  .product-grid {
+    content-visibility: auto;
+    contain-intrinsic-size: 320px 800px;
+  }
+  .btn, .nav-btn, .category-chip {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   #drawerBackdrop {
     background: rgba(0, 0, 0, 0.45) !important;
     -webkit-backface-visibility: hidden;
@@ -3876,10 +3904,6 @@ body {
         <span style="font-size:14px; line-height:1;">⚡</span>
         <span>স্মার্ট ফর্দ</span>
       </div>
-      <div class="nav-item" id="navComboPacks" onclick="App.navigate('combo_packs')">
-        <span style="font-size:14px; line-height:1;">🎁</span>
-        <span>কম্বো প্যাক</span>
-      </div>
       <div class="nav-item" id="navLoyaltyCenter" onclick="App.navigate('loyalty_center')">
         <span style="font-size:14px; line-height:1;">⭐</span>
         <span>লয়্যালটি ও কুপন</span>
@@ -4422,10 +4446,98 @@ body {
     return db;
   }
 
+  // HIGH-PERFORMANCE IN-MEMORY STORE CACHE WITH AUTOMATIC WRITE-THROUGH INVALIDATION
+  window.AppStoreCache = {
+    _cache: new Map(),
+    _itemMap: new Map(),
+    _version: 0,
+    get(store) {
+      const items = this._cache.get(store);
+      return items ? [...items] : null;
+    },
+    getItem(store, key) {
+      const storeMap = this._itemMap.get(store);
+      if (storeMap) {
+        const k = String(key);
+        if (storeMap.has(k)) return storeMap.get(k);
+      }
+      return null;
+    },
+    set(store, items) {
+      if (!Array.isArray(items)) return;
+      this._cache.set(store, items);
+      const storeMap = new Map();
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item) {
+          if (item.id !== undefined && item.id !== null) storeMap.set(String(item.id), item);
+          if (item.invoiceNo) storeMap.set(String(item.invoiceNo), item);
+          if (item.referenceNo) storeMap.set(String(item.referenceNo), item);
+        }
+      }
+      this._itemMap.set(store, storeMap);
+      this._version++;
+    },
+    put(store, item) {
+      if (!item) return;
+      let items = this._cache.get(store);
+      if (items) {
+        const idStr = String(item.id);
+        const idx = items.findIndex(i => i && (String(i.id) === idStr || (item.invoiceNo && String(i.invoiceNo) === String(item.invoiceNo))));
+        if (idx !== -1) {
+          items[idx] = item;
+        } else {
+          items.unshift(item);
+        }
+      }
+      let storeMap = this._itemMap.get(store);
+      if (!storeMap) {
+        storeMap = new Map();
+        this._itemMap.set(store, storeMap);
+      }
+      if (item.id !== undefined && item.id !== null) storeMap.set(String(item.id), item);
+      if (item.invoiceNo) storeMap.set(String(item.invoiceNo), item);
+      if (item.referenceNo) storeMap.set(String(item.referenceNo), item);
+      this._version++;
+    },
+    delete(store, key) {
+      const keyStr = String(key);
+      let items = this._cache.get(store);
+      if (items) {
+        const filtered = items.filter(i => i && String(i.id) !== keyStr && String(i.invoiceNo) !== keyStr);
+        this._cache.set(store, filtered);
+      }
+      const storeMap = this._itemMap.get(store);
+      if (storeMap) {
+        storeMap.delete(keyStr);
+      }
+      this._version++;
+    },
+    invalidate(store) {
+      if (store) {
+        this._cache.delete(store);
+        this._itemMap.delete(store);
+      } else {
+        this._cache.clear();
+        this._itemMap.clear();
+      }
+      this._version++;
+    },
+    clearAll() {
+      this.invalidate();
+    }
+  };
+
   async function dbGet(store, key) {
+    if (window.AppStoreCache) {
+      const cachedItem = window.AppStoreCache.getItem(store, key);
+      if (cachedItem) return cachedItem;
+    }
     if (isFallbackStorage) {
       const items = getFallbackStore(store);
-      return items.find(i => String(i.id) === String(key)) || null;
+      const found = items.find(i => String(i.id) === String(key)) || null;
+      if (found && window.AppStoreCache) window.AppStoreCache.put(store, found);
+      return found;
     }
     if (store === "recycleBin") {
       try {
@@ -4546,8 +4658,14 @@ body {
   }
 
   async function dbGetAll(store) {
+    if (window.AppStoreCache) {
+      const cached = window.AppStoreCache.get(store);
+      if (cached) return cached;
+    }
     if (isFallbackStorage) {
-      return [...getFallbackStore(store)];
+      const res = [...getFallbackStore(store)];
+      if (window.AppStoreCache) window.AppStoreCache.set(store, res);
+      return res;
     }
     if (store === "recycleBin") {
       let dbItems = [];
@@ -4575,12 +4693,15 @@ body {
       if (finalItems.length > 0) {
         saveRecycleBinFallback(finalItems);
       }
+      if (window.AppStoreCache) window.AppStoreCache.set(store, finalItems);
       return finalItems;
     }
     try {
       const db = await ensureStoreExists(store);
       if (!db || isFallbackStorage || !db.objectStoreNames || !db.objectStoreNames.contains(store)) {
-        return [...getFallbackStore(store)];
+        const res = [...getFallbackStore(store)];
+        if (window.AppStoreCache) window.AppStoreCache.set(store, res);
+        return res;
       }
       return new Promise((resolve) => {
         try {
@@ -4595,16 +4716,26 @@ body {
                 map.set(String(item.id), item);
               }
             }
-            resolve(map.size > 0 ? Array.from(map.values()) : res);
+            const finalRes = map.size > 0 ? Array.from(map.values()) : res;
+            if (window.AppStoreCache) window.AppStoreCache.set(store, finalRes);
+            resolve(finalRes);
           };
-          req.onerror = () => resolve([...getFallbackStore(store)]);
+          req.onerror = () => {
+            const res = [...getFallbackStore(store)];
+            if (window.AppStoreCache) window.AppStoreCache.set(store, res);
+            resolve(res);
+          };
         } catch (err) {
-          resolve([...getFallbackStore(store)]);
+          const res = [...getFallbackStore(store)];
+          if (window.AppStoreCache) window.AppStoreCache.set(store, res);
+          resolve(res);
         }
       });
     } catch (err) {
       console.warn("dbGetAll error for " + store + ":", err);
-      return [...getFallbackStore(store)];
+      const res = [...getFallbackStore(store)];
+      if (window.AppStoreCache) window.AppStoreCache.set(store, res);
+      return res;
     }
   }
 
@@ -4677,6 +4808,9 @@ body {
         }
         if (window.AccountingEngine && !window.AccountingEngine._suppressHooks) {
           await window.AccountingEngine.onTransactionCommitted(stagedChanges);
+        }
+        if (window.AppStoreCache) {
+          for (const s of storeList) window.AppStoreCache.invalidate(s);
         }
         return res;
       } catch (err) {
@@ -4804,6 +4938,9 @@ body {
             if (window.AccountingEngine && !window.AccountingEngine._suppressHooks) {
               await window.AccountingEngine.onTransactionCommitted(bufferedWrites);
             }
+            if (window.AppStoreCache) {
+              for (const s of storeList) window.AppStoreCache.invalidate(s);
+            }
             resolve(cbRes);
           } catch (recErr) {
             reject(recErr);
@@ -4911,6 +5048,9 @@ body {
             if (window.AccountingEngine && !window.AccountingEngine._suppressHooks) {
               await window.AccountingEngine.onTransactionCommitted(stagedFallbackOps);
             }
+            if (window.AppStoreCache) {
+              for (const s of storeList) window.AppStoreCache.invalidate(s);
+            }
           } catch (hookErr) {
             console.warn("Post-transaction sync warning:", hookErr);
           }
@@ -4971,6 +5111,9 @@ body {
     // Always mirror to fallback cache for resilience
     const fallbackList = getFallbackStore(store);
     const wasExistingInStore = fallbackList.some(i => i && (String(i.id) === String(item.id) || (item.invoiceNo && String(i.invoiceNo) === String(item.invoiceNo))));
+    if (window.AppStoreCache) {
+      window.AppStoreCache.put(store, item);
+    }
     if (store === "settings" && item.id === "smp_local_vault_snapshots") {
       const shallowItem = {
         id: item.id,
@@ -5058,6 +5201,10 @@ body {
     const fallbackList = prevList.filter(i => String(i && i.id) !== String(key) && String(i && i.invoiceNo) !== String(key));
     saveFallbackStore(store, fallbackList);
 
+    if (window.AppStoreCache) {
+      window.AppStoreCache.delete(store, key);
+    }
+
     if (store === "recycleBin") {
       saveRecycleBinFallback(fallbackList);
     }
@@ -5107,6 +5254,9 @@ body {
     try {
       localStorage.removeItem("smp_store_" + store);
     } catch (e) {}
+    if (window.AppStoreCache) {
+      window.AppStoreCache.invalidate(store);
+    }
     if (store === "recycleBin") {
       saveRecycleBinFallback([]);
     }
@@ -18090,82 +18240,121 @@ async function renderReports(container) {
 
         <div class="grid-2" style="margin-bottom:16px; gap:16px;">
           <!-- Custom Code Generator -->
-          <div style="background:var(--bg-surface-alt); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
-            <h3 style="font-size:14.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--primary);">
-              <span>🔲</span> <span>${_txt("Custom Barcode / QR Code Generator", "কাস্টম বারকোড ও কিউআর কোড তৈরি")}</span>
-            </h3>
+          <div style="background:var(--bg-surface-alt); padding:16px; border-radius:10px; border:1px solid var(--border-color); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px;">
+                <h3 style="font-size:14.5px; font-weight:700; margin:0; display:flex; align-items:center; gap:6px; color:var(--primary);">
+                  <span>🔲</span> <span>${_txt("Custom Barcode / QR Code Generator", "কাস্টম বারকোড ও কিউআর কোড তৈরি")}</span>
+                </h3>
+                <button type="button" class="btn btn-xs btn-outline" onclick="App.generateRandomCustomBarcode()" title="${_txt('Generate unique random barcode', 'স্বয়ংক্রিয় নতুন কোড তৈরি করুন')}">
+                  🎲 ${_txt("Auto Generate", "অটো কোড")}
+                </button>
+              </div>
 
-            <div class="form-group" style="margin-bottom:12px;">
-              <label class="form-label" style="font-weight:600;">${_txt("Code Type / Mode:", "কোডের ধরন / মোড:")}</label>
-              <select id="customCodeMode" class="form-control" style="font-weight:700;" onchange="App.renderBarcodePreview()">
-                <option value="barcode" selected>📊 ${_txt("Barcode Only (Code39)", "শুধুমাত্র বারকোড")}</option>
-                <option value="qr">📱 ${_txt("QR Code Only", "শুধুমাত্র কিউআর কোড")}</option>
-                <option value="dual">✨ ${_txt("Dual Mode (Barcode + QR Code)", "ডুয়াল মোড (বারকোড + কিউআর)")}</option>
-              </select>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label class="form-label" style="font-weight:600;">${_txt("Code Type / Mode:", "কোডের ধরন / মোড:")}</label>
+                <select id="customCodeMode" class="form-control" style="font-weight:700;" onchange="App.renderBarcodePreview()">
+                  <option value="barcode" selected>📊 ${_txt("Barcode Only (Code39)", "শুধুমাত্র বারকোড")}</option>
+                  <option value="qr">📱 ${_txt("QR Code Only", "শুধুমাত্র কিউআর কোড")}</option>
+                  <option value="dual">✨ ${_txt("Dual Mode (Barcode + QR Code)", "ডুয়াল মোড (বারকোড + কিউআর)")}</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom:12px;">
+                <label class="form-label" style="font-weight:600;">${_txt("Barcode Code / Text *:", "বারকোড নাম্বার বা কোড টেক্সট *:")}</label>
+                <div style="display:flex; gap:6px;">
+                  <input type="text" id="customBarcodeInput" class="form-control" value="PROD-8901001" style="font-family:monospace; font-weight:700; flex:1;" oninput="App.renderBarcodePreview()" />
+                  <button type="button" class="btn btn-sm btn-outline" onclick="App.copyCustomBarcodeText()" title="${_txt('Copy code', 'কোড কপি করুন')}">
+                    📋
+                  </button>
+                </div>
+              </div>
+
+              <div style="background:#ffffff; padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border-color); margin-top:12px; min-height:90px; display:flex; align-items:center; justify-content:center;" id="barcodePreviewBox">
+                ${generateBarcodeSvg("PROD-8901001", 220, 55)}
+              </div>
             </div>
 
-            <div class="form-group" style="margin-bottom:12px;">
-              <label class="form-label" style="font-weight:600;">${_txt("Barcode Code / Text *:", "বারকোড নাম্বার বা কোড টেক্সট *:")}</label>
-              <input type="text" id="customBarcodeInput" class="form-control" value="PROD-8901001" style="font-family:monospace; font-weight:700;" oninput="App.renderBarcodePreview()" />
-            </div>
-
-            <div style="background:#ffffff; padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border-color); margin-top:12px;" id="barcodePreviewBox">
-              ${generateBarcodeSvg("PROD-8901001", 220, 55)}
+            <!-- Download & Export Actions for Custom Barcode -->
+            <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-outline" style="flex:1; min-width:120px;" onclick="App.downloadBarcodeImage('barcodePreviewBox', 'barcode')">
+                📥 ${_txt("Download Image (PNG)", "ছবি ডাউনলোড (PNG)")}
+              </button>
+              <button type="button" class="btn btn-sm btn-primary" style="flex:1; min-width:120px;" onclick="App.printCustomBarcodeDirect()">
+                🖨️ ${_txt("Print This Code", "এই কোডটি প্রিন্ট করুন")}
+              </button>
             </div>
           </div>
 
           <!-- Product Label Print Configurator -->
-          <div style="background:var(--bg-surface-alt); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
-            <h3 style="font-size:14.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--success);">
-              <span>🏷️</span> <span>${_txt("Product Label & Sticker Sheet Generator", "পণ্যভিত্তিক স্টিকার লেবেল ও কাস্টম প্রিন্ট")}</span>
-            </h3>
+          <div style="background:var(--bg-surface-alt); padding:16px; border-radius:10px; border:1px solid var(--border-color); display:flex; flex-direction:column; justify-content:space-between;">
+            <div>
+              <h3 style="font-size:14.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:6px; color:var(--success);">
+                <span>🏷️</span> <span>${_txt("Product Label & Sticker Sheet Generator", "পণ্যভিত্তিক স্টিকার লেবেল ও কাস্টম প্রিন্ট")}</span>
+              </h3>
 
-            <div class="form-group" style="margin-bottom:12px;">
-              <label class="form-label" style="font-weight:600;">${_txt("Select Product *:", "পণ্য নির্বাচন করুন *:")}</label>
-              ${App.getProductComboboxHtml({
-                id: "barcodeProductSelect",
-                selectedId: products.length > 0 ? products[0].id : "",
-                products: products,
-                placeholder: _txt("Search product by Name, Barcode or SKU...", "পণ্য খুঁজুন (নাম, বারকোড বা SKU)..."),
-                onSelect: "handleBarcodeProductSelect"
-              })}
-            </div>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label class="form-label" style="font-weight:600;">${_txt("Select Product *:", "পণ্য নির্বাচন করুন *:")}</label>
+                ${App.getProductComboboxHtml({
+                  id: "barcodeProductSelect",
+                  selectedId: products.length > 0 ? products[0].id : "",
+                  products: products,
+                  placeholder: _txt("Search product by Name, Barcode or SKU...", "পণ্য খুঁজুন (নাম, বারকোড বা SKU)..."),
+                  onSelect: "handleBarcodeProductSelect"
+                })}
+              </div>
 
-            <div class="grid-2" style="gap:10px; margin-bottom:12px;">
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label" style="font-size:11.5px; font-weight:600;">${_txt("Print Layout:", "প্রিন্ট লেআউট:")}</label>
-                <select id="stickerPageLayout" class="form-control" style="font-size:12px; font-weight:600;">
-                  <option value="a4_24">📄 ${_txt("A4 Sticker Sheet (24 labels/page)", "A4 স্টিকার পেপার (২৪ টি লেবেল)")}</option>
-                  <option value="a4_30">📄 ${_txt("A4 Sticker Sheet (30 labels/page)", "A4 স্টিকার পেপার (৩০ টি লেবেল)")}</option>
-                  <option value="thermal_roll">🏷️ ${_txt("POS Thermal Sticker Roll (Single)", "থার্মাল স্টিকার রোল (একক লেবেল)")}</option>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label class="form-label" style="font-weight:600;">${_txt("Code Type / Mode:", "কোডের ধরন / মোড:")}</label>
+                <select id="stickerCodeMode" class="form-control" style="font-weight:700;" onchange="App.updateSelectedProductPreview()">
+                  <option value="barcode" selected>📊 ${_txt("Barcode Only (Code39)", "শুধুমাত্র বারকোড")}</option>
+                  <option value="qr">📱 ${_txt("QR Code Only", "শুধুমাত্র কিউআর কোড")}</option>
+                  <option value="dual">✨ ${_txt("Dual Mode (Barcode + QR Code)", "ডুয়াল মোড (বারকোড + কিউআর)")}</option>
                 </select>
               </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label" style="font-size:11.5px; font-weight:600;">${_txt("Number of Copies:", "স্টিকারের কপি সংখ্যা:")}</label>
-                <input type="number" id="stickerCopyCount" min="1" max="500" value="24" class="form-control" style="font-weight:700;" />
+
+              <div class="grid-2" style="gap:10px; margin-bottom:12px;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11.5px; font-weight:600;">${_txt("Print Layout & Size:", "প্রিন্ট লেআউট ও সাইজ:")}</label>
+                  <select id="stickerPageLayout" class="form-control" style="font-size:12px; font-weight:600;" onchange="App.handleStickerLayoutChange()">
+                    <option value="a4_24">📄 ${_txt("A4 Sticker Sheet (24 labels / page)", "A4 স্টিকার পেপার (২৪ টি লেবেল)")}</option>
+                    <option value="a4_30">📄 ${_txt("A4 Sticker Sheet (30 labels / page)", "A4 স্টিকার পেপার (৩০ টি লেবেল)")}</option>
+                    <option value="thermal_roll">🏷️ ${_txt("Thermal Roll (50mm × 30mm / 80mm)", "থার্মাল স্টিকার রোল (লেবেল)")}</option>
+                    <option value="thermal_single">🏷️ ${_txt("Thermal Single Label (1 label)", "একক থার্মাল স্টিকার")}</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" style="font-size:11.5px; font-weight:600;">${_txt("Number of Copies:", "স্টিকারের কপি সংখ্যা:")}</label>
+                  <input type="number" id="stickerCopyCount" min="1" max="500" value="24" class="form-control" style="font-weight:700;" />
+                </div>
+              </div>
+
+              <!-- Custom Content Options -->
+              <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:12px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px;">
+                <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
+                  <input type="checkbox" id="chkIncludeShopName" checked onchange="App.updateSelectedProductPreview()" /> ${_txt("Shop Name", "দোকানের নাম")}
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
+                  <input type="checkbox" id="chkIncludePrice" checked onchange="App.updateSelectedProductPreview()" /> ${_txt("Selling Price (MRP)", "বিক্রয়মূল্য")}
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
+                  <input type="checkbox" id="chkIncludeBatch" checked onchange="App.updateSelectedProductPreview()" /> ${_txt("Batch & Exp Date", "ব্যাচ ও মেয়াদ")}
+                </label>
+              </div>
+
+              <div id="selectedProductBarcodePreview" style="background:#ffffff; padding:12px; border-radius:8px; text-align:center; border:1px solid var(--border-color); min-height:85px; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                ${products[0] ? generateBarcodeSvg(products[0].barcode || products[0].sku || products[0].id, 200, 50) : '<span style="color:#888;">No product</span>'}
               </div>
             </div>
 
-            <!-- Custom Content Options -->
-            <div style="background:var(--bg-surface); padding:10px; border-radius:6px; border:1px solid var(--border-color); margin-bottom:12px; display:flex; flex-wrap:wrap; gap:12px; font-size:12px;">
-              <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
-                <input type="checkbox" id="chkIncludeShopName" checked /> ${_txt("Shop Name", "দোকানের নাম")}
-              </label>
-              <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
-                <input type="checkbox" id="chkIncludePrice" checked /> ${_txt("Selling Price (MRP)", "বিক্রয়মূল্য")}
-              </label>
-              <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; margin:0; font-weight:600;">
-                <input type="checkbox" id="chkIncludeBatch" checked /> ${_txt("Batch & Exp Date", "ব্যাচ ও মেয়াদ")}
-              </label>
+            <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-outline" style="flex:1; min-width:120px;" onclick="App.downloadBarcodeImage('selectedProductBarcodePreview', 'product-label')">
+                📥 ${_txt("Download Label PNG", "লেবেল ছবি ডাউনলোড")}
+              </button>
+              <button class="btn btn-primary btn-sm" style="flex:1; min-width:140px; font-weight:700;" onclick="App.printBarcodeStickers()">
+                🖨️ ${_txt("Generate & Print Stickers", "স্টিকার শিট প্রিন্ট করুন")}
+              </button>
             </div>
-
-            <div id="selectedProductBarcodePreview" style="background:#ffffff; padding:12px; border-radius:8px; text-align:center; border:1px solid var(--border-color);">
-              ${products[0] ? generateBarcodeSvg(products[0].barcode || products[0].sku || products[0].id, 200, 50) : '<span style="color:#888;">No product</span>'}
-            </div>
-
-            <button class="btn btn-primary btn-block" style="margin-top:12px; font-weight:700; padding:10px;" onclick="App.printBarcodeStickers()">
-              🖨️ ${_txt("Generate & Print Sticker Sheet", "স্টিকার শিট জেনারেট ও প্রিন্ট করুন")}
-            </button>
           </div>
         </div>
       </div>
@@ -20023,12 +20212,25 @@ async function renderReports(container) {
     }
 
     const activeTab = window.App.securityActiveTab;
-    const currentUser = window.App.currentUser || { username: "admin", name: "Shop Owner", role: "owner" };
+    const users = await dbGetAll("users") || [];
+    
+    // Always resolve currentUser from latest db users record to ensure 100% sync
+    let currentUser = null;
+    if (window.App.currentUser && window.App.currentUser.id) {
+      currentUser = users.find(u => u.id === window.App.currentUser.id) || null;
+    }
+    if (!currentUser) {
+      const storedId = localStorage.getItem("smp_current_user_id");
+      if (storedId) currentUser = users.find(u => u.id === storedId) || null;
+    }
+    if (!currentUser) {
+      currentUser = users.find(u => u.role === "owner" || u.username === "admin") || users[0] || { username: "admin", name: "Shop Owner", role: "owner" };
+    }
+    window.App.currentUser = currentUser;
     const isOwner = currentUser.role === "owner";
     const lang = (typeof getAppLang === "function" ? getAppLang() : (window.App?.currentLang || "en"));
     const isBn = (lang === "bn");
 
-    const users = await dbGetAll("users") || [];
     const rawLogs = await dbGetAll("auditLogs") || [];
     const legacyLogs = await dbGetAll("auditLog") || [];
 
@@ -20931,13 +21133,6 @@ async function renderReports(container) {
         await App.navigate("damage_register", true, true);
         if (typeof App.openCreateDamageVoucherModal === "function") App.openCreateDamageVoucherModal(true);
         return;
-      case "combo_packs":
-      case "combo_pack":
-        return App.navigate("combo_packs", true, isOverrideAllowed);
-      case "combo_new_modal":
-        await App.navigate("combo_packs", true, true);
-        if (typeof App.openComboPackModal === "function") App.openComboPackModal(true);
-        return;
 
       // Sales Operations & Customers sub-modules
       case "sales":
@@ -21421,20 +21616,6 @@ async function renderReports(container) {
             ]
           },
           {
-            id: "combo_packs",
-            icon: "🎁",
-            titleEn: "Combo & Bundle Packs Catalog",
-            titleBn: "কম্বো ও বান্ডেল প্যাক ক্যাটালগ",
-            subEn: "Create promotional product bundles, track constituent stock & 1-click POS sale",
-            subBn: "একাধিক পণ্যের কম্বো অফার তৈরি, প্যাক স্টক হিসাব ও সরাসরি POS বিক্রয়",
-            nav: "App.navigate('combo_packs')",
-            keywords: "combo pack bundle offer kitting কম্বো প্যাক বান্ডেল অফার প্যাকেজ",
-            subs: [
-              { labelEn: "🎁 All Combo Packs", labelBn: "🎁 সকল কম্বো ও অফার প্যাক", action: "combo_packs" },
-              { labelEn: "➕ Create Combo Pack", labelBn: "➕ নতুন কম্বো প্যাক তৈরি", action: "combo_new_modal" }
-            ]
-          },
-          {
             id: "suppliers",
             icon: "🏢",
             titleEn: "Suppliers",
@@ -21510,14 +21691,13 @@ async function renderReports(container) {
             icon: "📦",
             titleEn: "Product Catalog",
             titleBn: "পণ্য ক্যাটালগ",
-            subEn: "Manage products, prices, stock levels, combo packs & reorder alerts",
-            subBn: "পণ্য তালিকা, মূল্য, স্টক, কম্বো প্যাক ও স্মার্ট রি-অর্ডার",
+            subEn: "Manage products, prices, stock levels & reorder alerts",
+            subBn: "পণ্য তালিকা, মূল্য, স্টক ও স্মার্ট রি-অর্ডার",
             nav: "App.navigate('products')",
-            keywords: "products catalog item list পণ্য তালিকা ক্যাটালগ আইটেম combo reorder damage",
+            keywords: "products catalog item list পণ্য তালিকা ক্যাটালগ আইটেম reorder damage",
             subs: [
               { labelEn: "📦 All Products", labelBn: "📦 সকল পণ্য তালিকা", action: "products" },
               { labelEn: "⚡ Smart Reorder", labelBn: "⚡ স্মার্ট রি-অর্ডার", action: "smart_reorder" },
-              { labelEn: "🎁 Combo Packs", labelBn: "🎁 কম্বো প্যাক ক্যাটালগ", action: "combo_packs" },
               { labelEn: "⚖️ Damage Write-Off", labelBn: "⚖️ ড্যামেজ রাইট-অফ খাতা", action: "damage_register" }
             ]
           }
@@ -24983,8 +25163,6 @@ async function renderReports(container) {
         damage_writeoff: "damage.view",
         cheque_register: "cheque.view",
         smart_reorder: "reorder.view",
-        combo_packs: "combo.view",
-        combo_pack: "combo.view",
         loyalty_center: "loyalty.view",
         loyalty_credit: "loyalty.view",
         fixed_assets: "asset.view",
@@ -25038,9 +25216,6 @@ async function renderReports(container) {
         damage_register: "damage.view",
         damage_writeoff: "damage.view",
         damage_new_modal: "damage.create",
-        combo_packs: "combo.view",
-        combo_pack: "combo.view",
-        combo_new_modal: "combo.manage",
         sales: "pos.view",
         quotations: "quotation.view",
         quotation_new_modal: "quotation.create",
@@ -26477,11 +26652,17 @@ async function renderReports(container) {
 
       u.twoFactorSecret = this.generate2FASecret();
       await dbPut("users", u);
+      if (this.currentUser && this.currentUser.id === u.id) {
+        this.currentUser = u;
+      }
       (this.showToast || window.showToast || showToast)(isBn ? "নতুন 2FA সিক্রেট তৈরি হয়েছে 🔄" : "2FA Secret regenerated 🔄");
       this.logActivity("security", "REGENERATE_2FA",
         `ইউজার '${u.name}' এর 2FA কিউআর কোড রিজেনারেট করা হয়েছে`,
         `2FA QR code regenerated for user '${u.name}'`
       );
+      if (document.getElementById("viewContainer") && this.currentView === "security") {
+        this.renderSecurity(document.getElementById("viewContainer"));
+      }
       this.viewUser2FA(userId);
     },
 
@@ -27488,6 +27669,15 @@ async function renderReports(container) {
           await this.updateRecycleBinBadge();
         } catch(e) {}
 
+        // Automated cleanup of legacy combo pack records to guarantee 100% accurate physical inventory valuation
+        try {
+          const prods = await dbGetAll("products");
+          const combos = (prods || []).filter(p => p && (p.isComboPack || p.category === "Combo / Offer Pack"));
+          for (const cp of combos) {
+            await dbDelete("products", cp.id);
+          }
+        } catch(e) {}
+
         this._initialized = true;
 
         // Process queued early calls
@@ -27921,8 +28111,6 @@ async function renderReports(container) {
         damage_writeoff: "ড্যামেজ ও নষ্ট পণ্য রাইট-অফ খাতা",
         cheque_register: "চেক ও ব্যাংক ক্লিয়ারিং খাতা (PDC)",
         smart_reorder: "স্মার্ট রি-অর্ডার ও বাজারের ফর্দ",
-        combo_packs: "কম্বো ও বান্ডেল প্যাক ক্যাটালগ",
-        combo_pack: "কম্বো ও বান্ডেল প্যাক ক্যাটালগ",
         loyalty_center: "লয়্যালটি পয়েন্ট, মেম্বারশিপ ও কুপন",
         loyalty_credit: "লয়্যালটি পয়েন্ট, মেম্বারশিপ ও কুপন",
         fixed_assets: "ফিক্সড অ্যাসেট ও স্থায়ী সম্পদ খাতা",
@@ -27975,8 +28163,6 @@ async function renderReports(container) {
         damage_writeoff: "Damage & Write-Off Register",
         cheque_register: "Cheque & PDC Clearing Register",
         smart_reorder: "Smart Reorder & Procurement Board",
-        combo_packs: "Combo & Bundle Packs Catalog",
-        combo_pack: "Combo & Bundle Packs Catalog",
         loyalty_center: "Loyalty, Membership & Coupons",
         loyalty_credit: "Loyalty, Membership & Coupons",
         fixed_assets: "Fixed Assets & Depreciation",
@@ -28089,8 +28275,6 @@ async function renderReports(container) {
         damage_register: "navDamageRegister",
         damage_writeoff: "navDamageRegister",
         cheque_register: "navChequeRegister",
-        combo_packs: "navComboPacks",
-        combo_pack: "navComboPacks",
         loyalty_center: "navLoyaltyCenter",
         loyalty_credit: "navLoyaltyCenter",
         fixed_assets: "navFixedAssets",
@@ -28271,10 +28455,6 @@ async function renderReports(container) {
           break;
         case "cheque_register":
           await this.renderChequeRegisterView(container);
-          break;
-        case "combo_packs":
-        case "combo_pack":
-          await this.renderComboPacksView(container);
           break;
         case "loyalty_center":
         case "loyalty_credit":
@@ -30990,7 +31170,7 @@ async function renderReports(container) {
       if (el) el.scrollBy({ left: offset, behavior: "smooth" });
     },
 
-    async handlePosSearch(q) {
+    async handlePosSearch(q, immediate = false) {
       this.searchQuery = q;
       const scrollArea = document.getElementById("posProductScrollArea");
       const clearBtn = document.getElementById("posSearchClearBtn");
@@ -31002,7 +31182,17 @@ async function renderReports(container) {
 
       if (typeof window !== "undefined" && window.event && (window.event.isComposing || this._isImeComposing)) return;
 
-      if (scrollArea && countLabel) {
+      if (this._posSearchDebounceTimer) {
+        clearTimeout(this._posSearchDebounceTimer);
+        this._posSearchDebounceTimer = null;
+      }
+
+      const executePosFilter = async () => {
+        if (!scrollArea || !countLabel) {
+          if (this.currentView === "sales") renderSalesPOS(document.getElementById("viewContainer"));
+          return;
+        }
+
         const products = await dbGetAll("products");
         let filtered = [...products];
         if (this.activeFilter && this.activeFilter !== "all") {
@@ -31010,13 +31200,13 @@ async function renderReports(container) {
         }
         if (q) {
           const cleanQ = q.toLowerCase().trim();
-          filtered = filtered.filter(p =>
-            (p.name && p.name.toLowerCase().includes(cleanQ)) ||
-            (p.category && p.category.toLowerCase().includes(cleanQ)) ||
-            (p.sku && p.sku.toLowerCase().includes(cleanQ)) ||
-            (p.barcode && p.barcode.toLowerCase().includes(cleanQ)) ||
-            (p.batchNo && p.batchNo.toLowerCase().includes(cleanQ))
-          );
+          filtered = filtered.filter(p => {
+            if (!p) return false;
+            if (p._posSearchTokens) return p._posSearchTokens.includes(cleanQ);
+            const tokens = `${p.name || ""} ${p.category || ""} ${p.sku || ""} ${p.barcode || ""} ${p.batchNo || ""}`.toLowerCase();
+            p._posSearchTokens = tokens;
+            return tokens.includes(cleanQ);
+          });
         }
 
         countLabel.textContent = `${filtered.length} ${_txt("products found", "টি পণ্য পাওয়া গেছে")}`;
@@ -31084,8 +31274,12 @@ async function renderReports(container) {
             </div>
           `;
         }
+      };
+
+      if (immediate || !q) {
+        executePosFilter();
       } else {
-        if (this.currentView === "sales") renderSalesPOS(document.getElementById("viewContainer"));
+        this._posSearchDebounceTimer = setTimeout(executePosFilter, 85);
       }
     },
 
@@ -31093,7 +31287,7 @@ async function renderReports(container) {
       this.searchQuery = "";
       const searchInput = document.getElementById("posSearchInput");
       if (searchInput) searchInput.value = "";
-      this.handlePosSearch("");
+      this.handlePosSearch("", true);
     },
 
     setPosMobileTab(tab) {
@@ -34326,33 +34520,6 @@ async function renderReports(container) {
               </div>
             </div>
 
-            <!-- Combo / Bundle Pack Option inside Product Form -->
-            <div style="margin-top:10px; padding:10px 12px; border-radius:8px; border:1px dashed var(--primary); background:var(--bg-surface-alt);">
-              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:800; font-size:13px; color:var(--primary); margin:0;">
-                <input type="checkbox" id="prodIsComboChk" ${p && p.isComboPack ? 'checked' : ''} onchange="document.getElementById('prodComboBuilderBox').style.display = this.checked ? 'block' : 'none';" style="width:17px; height:17px;" />
-                <span>🎁 ${isBn ? 'এটি একটি কম্বো / অফার প্যাক (একাধিক পণ্যের বান্ডেল)' : 'This is a Combo / Bundle Offer Pack'}</span>
-              </label>
-              <div id="prodComboBuilderBox" style="display:${p && p.isComboPack ? 'block' : 'none'}; margin-top:10px;">
-                <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:6px;">
-                  ${isBn ? 'এই কম্বো প্যাকে যে পণ্যগুলো থাকবে সেগুলোর টিক দিন এবং পরিমাণ নির্ধারণ করুন:' : 'Select the products included in this combo bundle:'}
-                </div>
-                <div id="prodComboItemsList" style="max-height:150px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; padding:6px; background:var(--bg-surface);">
-                  ${products.filter(x => !x.isComboPack && (!p || x.id !== p.id)).map(item => {
-                    const existingComboItem = (p && Array.isArray(p.comboItems)) ? p.comboItems.find(ci => ci.productId === item.id) : null;
-                    return `
-                      <div class="prod-combo-row" data-id="${item.id}" data-name="${escapeHtml(item.name)}" style="display:flex; align-items:center; justify-content:space-between; padding:4px 6px; border-bottom:1px solid var(--border-color); font-size:12px;">
-                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; margin:0;">
-                          <input type="checkbox" class="prod-combo-item-chk" ${existingComboItem ? 'checked' : ''} />
-                          <span>${escapeHtml(item.name)} <small style="color:var(--text-muted);">(${formatMoney(item.sellingPrice)})</small></span>
-                        </label>
-                        <input type="number" class="form-control prod-combo-item-qty" value="${existingComboItem ? existingComboItem.qty : 1}" min="1" step="any" style="width:64px; height:26px; text-align:center; font-weight:700;" />
-                      </div>
-                    `;
-                  }).join("")}
-                </div>
-              </div>
-            </div>
-
             <!-- Warranty & IMEI/Serial Config inside Product Form -->
             <div style="margin-top:10px; padding:10px 12px; border-radius:8px; border:1px dashed var(--border-color); background:var(--bg-surface-alt);">
               <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:800; font-size:13px; color:var(--text); margin:0;">
@@ -34415,24 +34582,9 @@ async function renderReports(container) {
       const maxStock = parseFloat(document.getElementById("prodMax").value) || 0;
       const batchNo = document.getElementById("prodBatch").value.trim();
       const expiryDate = document.getElementById("prodExpiry").value;
-      const isComboPack = !!document.getElementById("prodIsComboChk")?.checked;
       const hasWarranty = !!document.getElementById("prodHasWarrantyChk")?.checked;
       const defaultWarranty = (document.getElementById("prodDefaultWarranty")?.value || "").trim();
       const requiresSerial = !!document.getElementById("prodRequiresSerialChk")?.checked;
-
-      const comboItems = [];
-      if (isComboPack) {
-        document.querySelectorAll(".prod-combo-row").forEach(r => {
-          const chk = r.querySelector(".prod-combo-item-chk");
-          if (chk && chk.checked) {
-            comboItems.push({
-              productId: r.getAttribute("data-id"),
-              name: r.getAttribute("data-name"),
-              qty: Math.max(1, parseFloat(r.querySelector(".prod-combo-item-qty")?.value) || 1)
-            });
-          }
-        });
-      }
 
       if (!name) return;
 
@@ -34445,7 +34597,7 @@ async function renderReports(container) {
       const product = {
         id,
         name,
-        category: isComboPack ? "Combo / Offer Pack" : category,
+        category,
         brand: brand || (existingProd ? existingProd.brand || "" : ""),
         unit,
         sku: sku || (existingProd ? existingProd.sku : id),
@@ -34458,8 +34610,6 @@ async function renderReports(container) {
         maxStock,
         batchNo,
         expiryDate,
-        isComboPack,
-        comboItems,
         hasWarranty,
         defaultWarranty,
         requiresSerial,
@@ -41937,71 +42087,84 @@ async function renderReports(container) {
       if (el) el.scrollBy({ left: offset, behavior: "smooth" });
     },
 
-    async handleProductSearch(q) {
+    async handleProductSearch(q, immediate = false) {
       this.productSearchQuery = q;
       setActivePage("products", 1);
       const clearBtn = document.getElementById("productSearchClearBtn");
       if (clearBtn) clearBtn.style.display = q ? "flex" : "none";
 
-      const listArea = document.getElementById("productsListArea");
-      if (listArea && this.currentView === "products") {
-        if (!this.cachedProducts || this.cachedProducts.length === 0) {
-          this.cachedProducts = await dbGetAll("products");
+      if (this._prodSearchDebounceTimer) {
+        clearTimeout(this._prodSearchDebounceTimer);
+        this._prodSearchDebounceTimer = null;
+      }
+
+      const executeProdFilter = async () => {
+        const listArea = document.getElementById("productsListArea");
+        if (listArea && this.currentView === "products") {
+          const products = await dbGetAll("products");
+          const now = Date.now();
+          let filtered = [...products];
+
+          // Status filter
+          if (this.productStockFilter === "low") {
+            filtered = filtered.filter(p => {
+              const s = parseFloat(p.currentStock) || 0;
+              const min = parseFloat(p.minStock) || 5;
+              return s > 0 && s <= min;
+            });
+          } else if (this.productStockFilter === "out") {
+            filtered = filtered.filter(p => (parseFloat(p.currentStock) || 0) <= 0);
+          } else if (this.productStockFilter === "overstock") {
+            filtered = filtered.filter(p => {
+              const s = parseFloat(p.currentStock) || 0;
+              const max = parseFloat(p.maxStock) || 0;
+              return max > 0 && s > max;
+            });
+          } else if (this.productStockFilter === "expired") {
+            filtered = filtered.filter(p => p.expiryDate && new Date(p.expiryDate).getTime() < now);
+          }
+
+          // Category filter
+          if (this.productCategoryFilter && this.productCategoryFilter !== "all") {
+            filtered = filtered.filter(p => p.category === this.productCategoryFilter);
+          }
+
+          // Search query
+          if (this.productSearchQuery) {
+            const query = this.productSearchQuery.toLowerCase().trim();
+            filtered = filtered.filter(p => {
+              if (!p) return false;
+              if (p._posSearchTokens) return p._posSearchTokens.includes(query);
+              const tokens = `${p.name || ""} ${p.category || ""} ${p.sku || ""} ${p.barcode || ""} ${p.batchNo || ""}`.toLowerCase();
+              p._posSearchTokens = tokens;
+              return tokens.includes(query);
+            });
+          }
+
+          listArea.innerHTML = renderProductsListHtml(filtered, now);
+
+          const countBadge = document.getElementById("productsCountBadge");
+          if (countBadge) countBadge.textContent = `(${filtered.length})`;
+
+          const pagContainer = document.getElementById("productsPaginationContainer");
+          if (pagContainer) pagContainer.innerHTML = renderPagination("products", filtered.length);
+        } else if (this.currentView === "products") {
+          renderProducts(document.getElementById("viewContainer"));
         }
-        const products = this.cachedProducts || [];
-        const now = Date.now();
-        let filtered = [...products];
+      };
 
-        // Status filter
-        if (this.productStockFilter === "low") {
-          filtered = filtered.filter(p => {
-            const s = parseFloat(p.currentStock) || 0;
-            const min = parseFloat(p.minStock) || 5;
-            return s > 0 && s <= min;
-          });
-        } else if (this.productStockFilter === "out") {
-          filtered = filtered.filter(p => (parseFloat(p.currentStock) || 0) <= 0);
-        } else if (this.productStockFilter === "overstock") {
-          filtered = filtered.filter(p => {
-            const s = parseFloat(p.currentStock) || 0;
-            const max = parseFloat(p.maxStock) || 0;
-            return max > 0 && s > max;
-          });
-        } else if (this.productStockFilter === "expired") {
-          filtered = filtered.filter(p => p.expiryDate && new Date(p.expiryDate).getTime() < now);
-        }
-
-        // Category filter
-        if (this.productCategoryFilter && this.productCategoryFilter !== "all") {
-          filtered = filtered.filter(p => p.category === this.productCategoryFilter);
-        }
-
-        // Search query
-        if (this.productSearchQuery) {
-          const query = this.productSearchQuery.toLowerCase().trim();
-          filtered = filtered.filter(p =>
-            (p.name && p.name.toLowerCase().includes(query)) ||
-            (p.sku && p.sku.toLowerCase().includes(query)) ||
-            (p.barcode && p.barcode.toLowerCase().includes(query)) ||
-            (p.category && p.category.toLowerCase().includes(query))
-          );
-        }
-
-        listArea.innerHTML = renderProductsListHtml(filtered, now);
-
-        const countBadge = document.getElementById("productsCountBadge");
-        if (countBadge) countBadge.textContent = `(${filtered.length})`;
-
-        const pagContainer = document.getElementById("productsPaginationContainer");
-        if (pagContainer) pagContainer.innerHTML = renderPagination("products", filtered.length);
-      } else if (this.currentView === "products") {
-        renderProducts(document.getElementById("viewContainer"));
+      if (immediate || !q) {
+        executeProdFilter();
+      } else {
+        this._prodSearchDebounceTimer = setTimeout(executeProdFilter, 85);
       }
     },
     clearProductSearch() {
       this.productSearchQuery = "";
       setActivePage("products", 1);
-      if (this.currentView === "products") renderProducts(document.getElementById("viewContainer"));
+      const searchInput = document.getElementById("productSearchInput");
+      if (searchInput) searchInput.value = "";
+      this.handleProductSearch("", true);
     },
 
     resetAllProductFilters() {
@@ -43533,29 +43696,233 @@ async function renderReports(container) {
       }
     },
 
+    generateRandomCustomBarcode() {
+      const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
+      const randomCode = "PROD-" + Math.floor(10000000 + Math.random() * 90000000);
+      const inputEl = document.getElementById("customBarcodeInput");
+      if (inputEl) {
+        inputEl.value = randomCode;
+        this.renderBarcodePreview(randomCode);
+      }
+      (this.showToast || window.showToast || showToast)(isBn ? `নতুন ইউনিক কোড জেনারেট হয়েছে: ${randomCode} 🎲` : `Generated unique code: ${randomCode} 🎲`);
+    },
+
+    copyCustomBarcodeText() {
+      const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
+      const inputEl = document.getElementById("customBarcodeInput");
+      const code = inputEl ? inputEl.value.trim() : "";
+      if (!code) return;
+      this.copyToClipboard(code, isBn ? `কোড কপি করা হয়েছে: ${code} 📋` : `Code copied: ${code} 📋`);
+    },
+
+    handleStickerLayoutChange() {
+      const layout = document.getElementById("stickerPageLayout")?.value || "a4_24";
+      const copiesInput = document.getElementById("stickerCopyCount");
+      if (!copiesInput) return;
+      if (layout === "a4_24") copiesInput.value = "24";
+      else if (layout === "a4_30") copiesInput.value = "30";
+      else if (layout === "thermal_single") copiesInput.value = "1";
+      else if (layout === "thermal_roll") copiesInput.value = "10";
+    },
+
+    async updateSelectedProductPreview() {
+      const prodSelect = document.getElementById("barcodeProductSelect");
+      const prodId = prodSelect ? prodSelect.value : "";
+      if (prodId) {
+        await this.handleBarcodeProductSelect(prodId);
+      } else {
+        const products = await dbGetAll("products");
+        if (products && products.length > 0) {
+          await this.handleBarcodeProductSelect(products[0].id);
+        }
+      }
+    },
+
     async handleBarcodeProductSelect(prodId) {
       const p = await dbGet("products", prodId);
       const box = document.getElementById("selectedProductBarcodePreview");
-      if (box) {
-        if (p) {
-          const codeVal = p.barcode || p.sku || p.id;
-          const priceVal = p.sellingPrice ? `৳${formatMoney(p.sellingPrice)}` : "";
-          box.innerHTML = `
-            <div style="font-weight:800; font-size:13px; color:var(--text-main); margin-bottom:4px;">${p.name || ''}</div>
-            <div style="margin:4px 0;">${generateBarcodeSvg(codeVal, 200, 50)}</div>
-            ${priceVal ? `<div style="font-weight:700; font-size:12px; color:var(--primary); margin-top:2px;">MRP: ${priceVal}</div>` : ''}
+      if (!box) return;
+
+      const incShop = document.getElementById("chkIncludeShopName")?.checked !== false;
+      const incPrice = document.getElementById("chkIncludePrice")?.checked !== false;
+      const incBatch = document.getElementById("chkIncludeBatch")?.checked !== false;
+      const codeMode = document.getElementById("stickerCodeMode")?.value || "barcode";
+      const shopName = window.App?.settings?.shopName || "মেসার্স জেনারেল স্টোর";
+
+      if (p) {
+        const codeVal = p.barcode || p.sku || p.id;
+        const priceVal = p.sellingPrice ? `৳${formatMoney(p.sellingPrice)}` : "";
+        const batchVal = (p.batchNo ? "B:" + p.batchNo : "") + (p.expiryDate ? " Exp:" + p.expiryDate : "");
+
+        let codeSvg = "";
+        if (codeMode === "qr") {
+          codeSvg = generateQrSvg(codeVal, 100);
+        } else if (codeMode === "dual") {
+          codeSvg = `
+            <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin:2px 0;">
+              <div>${generateBarcodeSvg(codeVal, 150, 42)}</div>
+              <div>${generateQrSvg(codeVal, 60)}</div>
+            </div>
           `;
         } else {
-          box.innerHTML = '<span style="color:#888;">কোনো পণ্য নির্বাচন করা হয়নি</span>';
+          codeSvg = generateBarcodeSvg(codeVal, 200, 48);
         }
+
+        box.innerHTML = `
+          ${incShop ? `<div style="font-size:10px; font-weight:800; text-transform:uppercase; color:var(--text-muted); margin-bottom:2px;">${shopName}</div>` : ''}
+          <div style="font-weight:800; font-size:13px; color:var(--text-main); margin-bottom:4px; max-width:95%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name || ''}</div>
+          <div style="margin:4px 0;">${codeSvg}</div>
+          <div style="display:flex; justify-content:space-around; width:100%; font-size:11px; font-weight:700; color:var(--text-muted); margin-top:2px;">
+            ${incPrice && priceVal ? `<span style="color:var(--primary); font-weight:800;">MRP: ${priceVal}</span>` : ''}
+            ${incBatch && batchVal ? `<span>${batchVal}</span>` : ''}
+          </div>
+        `;
+      } else {
+        box.innerHTML = '<span style="color:#888;">কোনো পণ্য নির্বাচন করা হয়নি</span>';
       }
+    },
+
+    async downloadBarcodeImage(elementId, filePrefix = "barcode") {
+      const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
+      const el = document.getElementById(elementId);
+      if (!el) return;
+
+      try {
+        const svgEls = Array.from(el.querySelectorAll("svg"));
+        let dataUrl = "";
+
+        if (svgEls.length === 1) {
+          const svgEl = svgEls[0];
+          const svgData = new XMLSerializer().serializeToString(svgEl);
+          const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+          const URL = window.URL || window.webkitURL || window;
+          const blobURL = URL.createObjectURL(svgBlob);
+
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = blobURL;
+          });
+
+          const canvas = document.createElement("canvas");
+          const scale = 3; // 300 DPI high resolution
+          const w = (svgEl.clientWidth || parseInt(svgEl.getAttribute("width"), 10) || 220);
+          const h = (svgEl.clientHeight || parseInt(svgEl.getAttribute("height"), 10) || 60);
+          canvas.width = Math.round(w * scale);
+          canvas.height = Math.round(h * scale);
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(blobURL);
+          dataUrl = canvas.toDataURL("image/png");
+        } else if (svgEls.length > 1) {
+          const scale = 3;
+          const loadedImages = [];
+          let totalW = 0;
+          let maxH = 0;
+
+          const URL = window.URL || window.webkitURL || window;
+          for (const svgEl of svgEls) {
+            const svgData = new XMLSerializer().serializeToString(svgEl);
+            const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+            const blobURL = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = reject;
+              img.src = blobURL;
+            });
+            const w = (svgEl.clientWidth || parseInt(svgEl.getAttribute("width"), 10) || 120);
+            const h = (svgEl.clientHeight || parseInt(svgEl.getAttribute("height"), 10) || 60);
+            loadedImages.push({ img, w, h, blobURL });
+            totalW += w;
+            if (h > maxH) maxH = h;
+          }
+
+          const gap = 16;
+          const padding = 12;
+          const fullW = (totalW + gap * (loadedImages.length - 1) + padding * 2) * scale;
+          const fullH = (maxH + padding * 2) * scale;
+
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.round(fullW);
+          canvas.height = Math.round(fullH);
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          let currentX = padding * scale;
+          for (const item of loadedImages) {
+            const targetY = (padding + (maxH - item.h) / 2) * scale;
+            ctx.drawImage(item.img, currentX, targetY, item.w * scale, item.h * scale);
+            currentX += (item.w + gap) * scale;
+            URL.revokeObjectURL(item.blobURL);
+          }
+          dataUrl = canvas.toDataURL("image/png");
+        } else if (typeof html2canvas === "function") {
+          const canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
+          dataUrl = canvas.toDataURL("image/png");
+        }
+
+        if (dataUrl) {
+          const a = document.createElement("a");
+          a.href = dataUrl;
+          a.download = `${filePrefix}_${Date.now()}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          (this.showToast || window.showToast || showToast)(isBn ? "বারকোড ছবি সফলভাবে ডাউনলোড হয়েছে 📥" : "Barcode image downloaded 📥", "success");
+        } else {
+          throw new Error("Could not capture image");
+        }
+      } catch (err) {
+        console.warn("Download image error:", err);
+        (this.showToast || window.showToast || showToast)(isBn ? "ছবি ডাউনলোড করতে সমস্যা হয়েছে!" : "Failed to download barcode image", "danger");
+      }
+    },
+
+    async printCustomBarcodeDirect() {
+      const codeVal = document.getElementById("customBarcodeInput")?.value?.trim() || "PROD-8901001";
+      const codeMode = document.getElementById("customCodeMode")?.value || "barcode";
+      const shopName = window.App?.settings?.shopName || "মেসার্স জেনারেল স্টোর";
+
+      let codeSvg = "";
+      if (codeMode === "qr") codeSvg = generateQrSvg(codeVal, 100);
+      else if (codeMode === "dual") {
+        codeSvg = `
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+            ${generateBarcodeSvg(codeVal, 140, 40)}
+            ${generateQrSvg(codeVal, 50)}
+          </div>
+        `;
+      } else codeSvg = generateBarcodeSvg(codeVal, 180, 48);
+
+      const html = `
+        <div style="text-align:center; padding:12px; background:#fff; font-family:system-ui, sans-serif;">
+          <div style="font-size:12px; font-weight:800; color:#333; margin-bottom:4px;">${shopName}</div>
+          <div style="margin:6px 0;">${codeSvg}</div>
+          <div style="font-size:11px; font-family:monospace; font-weight:700; color:#000;">${codeVal}</div>
+        </div>
+      `;
+
+      window.App.openPrintPreviewModal({
+        title: `🖨️ ${_txt("Custom Barcode Print", "কাস্টম বারকোড প্রিন্ট")} (${codeVal})`,
+        docTitle: `Barcode_${codeVal}`,
+        defaultFormat: "thermal-80",
+        renderHtml: () => html,
+        onPrint: (format, opts, h, setup) => {
+          window.App.printHtml(h, `Barcode_${codeVal}`, { type: format, format: format, pageSetup: setup, direct: true });
+        }
+      });
     },
 
     async printBarcodeStickers() {
       const prodSelect = document.getElementById("barcodeProductSelect");
       const prodId = prodSelect ? prodSelect.value : "";
       const customVal = document.getElementById("customBarcodeInput")?.value?.trim() || "PROD-8901001";
-      const codeMode = document.getElementById("customCodeMode")?.value || "barcode";
+      const codeMode = document.getElementById("stickerCodeMode")?.value || document.getElementById("customCodeMode")?.value || "barcode";
       const layout = document.getElementById("stickerPageLayout")?.value || "a4_24";
       const copies = parseInt(document.getElementById("stickerCopyCount")?.value || "24", 10) || 24;
 
@@ -43565,7 +43932,7 @@ async function renderReports(container) {
 
       const shopName = window.App?.settings?.shopName || "মেসার্স জেনারেল স্টোর";
 
-      let prodName = "কাস্টম কোড / আইটেম";
+      let prodName = "কাস্টম আইটেম";
       let codeVal = customVal;
       let priceText = "";
       let batchText = "";
@@ -43580,30 +43947,44 @@ async function renderReports(container) {
             batchText = (p.batchNo ? "B:" + p.batchNo : "") + (p.expiryDate ? " Exp:" + p.expiryDate : "");
           }
         }
+      } else {
+        const allProds = await dbGetAll("products");
+        if (allProds && allProds.length > 0) {
+          const firstP = allProds[0];
+          prodName = firstP.name || prodName;
+          codeVal = firstP.barcode || firstP.sku || firstP.id || customVal;
+          if (firstP.sellingPrice) priceText = "MRP: ৳" + formatMoney(firstP.sellingPrice);
+          if (firstP.batchNo || firstP.expiryDate) {
+            batchText = (firstP.batchNo ? "B:" + firstP.batchNo : "") + (firstP.expiryDate ? " Exp:" + firstP.expiryDate : "");
+          }
+        }
       }
+
+      const isThermal = layout === "thermal_roll" || layout === "thermal_single";
+      const targetPrintFormat = isThermal ? "thermal-80" : "a4";
 
       function renderSingleSticker() {
         let codeSvg = "";
         if (codeMode === "qr") {
-          codeSvg = generateQrSvg(codeVal, 60);
+          codeSvg = generateQrSvg(codeVal, isThermal ? 70 : 60);
         } else if (codeMode === "dual") {
           codeSvg = `
             <div style="display:flex; align-items:center; justify-content:center; gap:4px;">
-              ${generateBarcodeSvg(codeVal, 100, 30)}
-              ${generateQrSvg(codeVal, 36)}
+              ${generateBarcodeSvg(codeVal, isThermal ? 110 : 100, 32)}
+              ${generateQrSvg(codeVal, isThermal ? 40 : 36)}
             </div>
           `;
         } else {
-          codeSvg = generateBarcodeSvg(codeVal, 140, 36);
+          codeSvg = generateBarcodeSvg(codeVal, isThermal ? 160 : 140, 36);
         }
 
         return `
-          <div style="border:1px dashed #94a3b8; border-radius:5px; padding:6px; text-align:center; background:#ffffff; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center; align-items:center; page-break-inside:avoid; break-inside:avoid; min-height:85px;">
-            ${incShop ? `<div style="font-size:9px; font-weight:800; text-transform:uppercase; color:#0f172a; line-height:1.1;">${shopName}</div>` : ""}
-            <div style="font-size:10px; font-weight:700; color:#1e293b; max-width:98%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:1px 0;">${prodName}</div>
+          <div class="sticker-cell" style="border:1px dashed #64748b; border-radius:5px; padding:6px; text-align:center; background:#ffffff; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center; align-items:center; page-break-inside:avoid; break-inside:avoid; min-height:${isThermal ? '95px' : '85px'};">
+            ${incShop ? `<div style="font-size:9.5px; font-weight:800; text-transform:uppercase; color:#0f172a; line-height:1.1; max-width:98%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${shopName}</div>` : ""}
+            <div style="font-size:10.5px; font-weight:800; color:#1e293b; max-width:98%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:1px 0;">${prodName}</div>
             <div style="margin:2px 0; display:flex; justify-content:center; width:100%;">${codeSvg}</div>
-            <div style="display:flex; justify-content:space-around; width:100%; font-size:8.5px; font-weight:700; color:#334155; margin-top:1px;">
-              ${incPrice && priceText ? `<span>${priceText}</span>` : ""}
+            <div style="display:flex; justify-content:space-around; width:100%; font-size:9px; font-weight:800; color:#334155; margin-top:2px;">
+              ${incPrice && priceText ? `<span style="color:#000;">${priceText}</span>` : ""}
               ${incBatch && batchText ? `<span>${batchText}</span>` : ""}
             </div>
           </div>
@@ -43614,20 +43995,31 @@ async function renderReports(container) {
 
       let gridStyle = "";
       if (layout === "a4_24") {
-        gridStyle = "display:grid; grid-template-columns: repeat(3, 1fr); gap:6mm; padding:8mm;";
+        gridStyle = "display:grid; grid-template-columns: repeat(3, 1fr); gap:6mm; padding:6mm;";
       } else if (layout === "a4_30") {
-        gridStyle = "display:grid; grid-template-columns: repeat(3, 1fr); gap:4mm; padding:6mm;";
+        gridStyle = "display:grid; grid-template-columns: repeat(3, 1fr); gap:4mm; padding:5mm;";
+      } else if (layout === "thermal_single") {
+        gridStyle = "display:flex; flex-direction:column; align-items:center; padding:2mm; max-width:76mm; margin:0 auto;";
       } else {
-        gridStyle = "display:flex; flex-direction:column; gap:5mm; align-items:center; padding:4mm; max-width:80mm; margin:0 auto;";
+        // Thermal roll
+        gridStyle = "display:flex; flex-direction:column; gap:4mm; align-items:center; padding:3mm; max-width:76mm; margin:0 auto;";
       }
 
       const containerHtml = `
-        <div style="${gridStyle} width:100%; box-sizing:border-box;">
+        <div style="${gridStyle} width:100%; box-sizing:border-box; background:#fff;">
           ${stickersHtml}
         </div>
       `;
 
-      window.App.printHtml(containerHtml, `Sticker Sheet - ${prodName}`, { type: "stickers" });
+      window.App.openPrintPreviewModal({
+        title: `🏷️ ${_txt("Sticker Sheet Print Preview", "স্টিকার শিট প্রিভিউ")} (${copies} ${_txt("copies", "কপি")})`,
+        docTitle: `Stickers_${prodName}_${copies}`,
+        defaultFormat: targetPrintFormat,
+        renderHtml: () => containerHtml,
+        onPrint: (format, opts, h, pageSetup) => {
+          window.App.printHtml(h, `Sticker Sheet - ${prodName}`, { type: format.startsWith("thermal") ? format : "stickers", format: format, pageSetup: pageSetup, direct: true });
+        }
+      });
     }
   });
 
@@ -51085,64 +51477,9 @@ window.App.deletePurchase = async function(purchaseId) {
 
     // 8. Barcode Sticker Sheet Print Preview
     window.App.openBarcodeStickerPrintPreview = async function() {
-      const select = document.getElementById("barcodeProductSelect");
-      const customInput = document.getElementById("customBarcodeInput");
-      const products = await dbGetAll("products");
-      
-      let productName = "পণ্য";
-      let code = customInput?.value.trim() || "PROD-8901001";
-      let price = 0;
-
-      if (select && select.value) {
-        const prod = products.find(p => p.id === select.value);
-        if (prod) {
-          productName = prod.name;
-          code = prod.barcode || prod.sku || prod.id;
-          price = parseFloat(prod.sellingPrice || prod.price) || 0;
-        }
-      } else if (products.length > 0) {
-        productName = products[0].name;
-        code = products[0].barcode || products[0].sku || products[0].id;
-        price = parseFloat(products[0].sellingPrice || products[0].price) || 0;
+      if (typeof window.App?.printBarcodeStickers === "function") {
+        return window.App.printBarcodeStickers();
       }
-
-      const shopName = window.App?.settings?.shopName || "মেসার্স জেনারেল স্টোর";
-      const barcodeSvg = typeof generateBarcodeSvg === "function" ? generateBarcodeSvg(code, 150, 42) : "";
-
-      window.App.openPrintPreviewModal({
-        title: `🏷️ ${_txt("Barcode Sticker Preview", "বারকোড স্টিকার শিট প্রিভিউ")} (${code})`,
-        docTitle: `Barcode Stickers - ${code}`,
-        defaultFormat: window.App.getPreferredPrintFormat("a4"),
-        options: { showLogo: false, showSignatures: false },
-        renderHtml: (format, opts) => {
-          const isThermal = format.startsWith("thermal");
-          const is58 = format === "thermal-58";
-          const stickerCount = isThermal ? 8 : 24;
-          const cols = is58 ? 1 : (isThermal ? 2 : 3);
-          const stickers = Array(stickerCount).fill(0).map(() => `
-            <div class="sticker-cell" style="border:1px dashed #666; border-radius:4px; padding:6px 8px; text-align:center; font-family:system-ui, sans-serif; page-break-inside:avoid; background:#fff;">
-              <div style="font-size:10px; font-weight:700; color:#333; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${shopName}</div>
-              <div style="font-size:11px; font-weight:800; color:#000; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${productName}</div>
-              <div style="display:flex; justify-content:center; align-items:center; margin:2px 0;">
-                ${barcodeSvg}
-              </div>
-              <div style="font-size:10px; font-weight:600; letter-spacing:1px; color:#444;">${code}</div>
-              <div style="font-size:12px; font-weight:900; color:#000; margin-top:2px;">মূল্য: ৳${price}</div>
-            </div>
-          `).join("");
-
-          return `
-            <div style="padding:${isThermal ? '4px' : '10px'}; background:#fff;">
-              <div class="sticker-sheet-grid" style="display:grid; grid-template-columns:repeat(${cols}, 1fr); gap:${isThermal ? '6px' : '15px'};">
-                ${stickers}
-              </div>
-            </div>
-          `;
-        },
-        onPrint: (format, opts, html, pageSetup) => {
-          window.App.printHtml(html, `${shopName} - Barcode Stickers (${code})`, { type: format.startsWith("thermal") ? format : "stickers", format: format, pageSetup: pageSetup, direct: true });
-        }
-      });
     };
 
     // 9. General Reports Print Preview
@@ -51236,9 +51573,7 @@ window.App.deletePurchase = async function(purchaseId) {
       return window.App.openInventoryValuationPrintPreview();
     };
 
-    window.App.printBarcodeStickers = function() {
-      return window.App.openBarcodeStickerPrintPreview();
-    };
+    // window.App.printBarcodeStickers is implemented with full layout and configurator options above
 
     // C) Edit Expenses & Income
     window.App.openEditExpenseModal = async function(id) {
@@ -59955,163 +60290,6 @@ window.App.deletePurchase = async function(purchaseId) {
     };
 
     // ============================================================================
-    // 8. COMBO / OFFER PACK BUILDER MODAL (প্রোডাক্ট বান্ডেল ও কম্বো প্যাক)
-    // ============================================================================
-    window.App.getComboAvailableStock = function(comboProd, allProducts) {
-      if (!comboProd || !comboProd.isComboPack || !Array.isArray(comboProd.comboItems) || comboProd.comboItems.length === 0) {
-        return parseFloat(comboProd?.currentStock) || 0;
-      }
-      const list = Array.isArray(allProducts) ? allProducts : (this.cachedProducts || []);
-      let minBundles = Infinity;
-      for (const ci of comboProd.comboItems) {
-        const child = list.find(p => String(p.id) === String(ci.productId));
-        const reqQty = Math.max(0.0001, parseFloat(ci.qty) || 1);
-        const childStock = child ? Math.max(0, parseFloat(child.currentStock) || 0) : 0;
-        const possible = Math.floor(childStock / reqQty);
-        if (possible < minBundles) minBundles = possible;
-      }
-      return minBundles === Infinity ? 0 : minBundles;
-    };
-
-    window.App.openComboPackModal = async function() {
-      const isBn = ((window.App?.currentLang || "bn") === "bn");
-      const products = (await dbGetAll("products")) || [];
-      const regularProds = products.filter(p => !p.isComboPack);
-      const comboProds = products.filter(p => p.isComboPack);
-      this._tempComboItems = [];
-
-      const html = `
-        <div class="modal-header">
-          <h3 style="font-size:15px; font-weight:800;">🎁 ${isBn ? "প্রোডাক্ট বান্ডেল / কম্বো ও অফার প্যাক তৈরি" : "Combo & Promotional Offer Pack Builder"}</h3>
-          <button class="icon-btn" onclick="App.closeModal()">✕</button>
-        </div>
-        <div class="modal-body">
-          <div style="background:var(--primary-lt); border:1px solid var(--primary); border-radius:8px; padding:10px 12px; margin-bottom:12px; font-size:12px; color:var(--text-main);">
-            💡 ${isBn ? "একাধিক পণ্য মিলিয়ে একটি কম্বো বা অফার প্যাকেজ তৈরি করুন। POS থেকে এই কম্বো বিক্রি করলে ভেতরের প্রতিটি পণ্যের স্টক স্বয়ংক্রিয়ভাবে কমে যাবে।" : "Combine multiple products into a promotional bundle. Selling a combo pack in POS automatically deducts stock of each constituent item."}
-          </div>
-
-          <form onsubmit="event.preventDefault(); App.saveComboPackProduct();">
-            <div class="grid-2">
-              <div class="form-group">
-                <label class="form-label">${isBn ? "কম্বো প্যাকের নাম *:" : "Combo Pack Name *:"}</label>
-                <input type="text" id="comboPackName" class="form-control" placeholder="${isBn ? 'যেমন: ঈদ স্পেশাল ফ্যামিলি কম্বো' : 'e.g. Family Festival Combo'}" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">${isBn ? "অফার বিক্রয়মূল্য (৳) *:" : "Combo Offer Selling Price (৳) *:"}</label>
-                <input type="number" step="any" min="0" id="comboPackPrice" class="form-control" placeholder="0.00" required />
-              </div>
-            </div>
-
-            <div style="background:var(--bg-surface-alt); border:1px solid var(--border-color); border-radius:8px; padding:10px; margin-bottom:12px;">
-              <label class="form-label" style="font-size:12px; font-weight:800;">📦 ${isBn ? "কম্বোতে পণ্য যোগ করুন:" : "Add Constituent Products to Combo:"}</label>
-              <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                <select id="comboSelectProd" class="form-control" style="flex:1; min-width:160px;">
-                  ${regularProds.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (${isBn ? 'বিক্রয়:' : 'Sell:'} ${formatMoney(p.sellingPrice)}, ${isBn ? 'স্টক:' : 'Stock:'} ${p.currentStock})</option>`).join("")}
-                </select>
-                <input type="number" id="comboSelectQty" class="form-control" style="width:85px;" min="1" step="any" value="1" placeholder="${isBn ? 'পরিমাণ' : 'Qty'}" />
-                <button type="button" class="btn btn-sm btn-primary" onclick="App.addTempComboItem()">+ ${isBn ? "যুক্ত করুন" : "Add"}</button>
-              </div>
-              <div id="comboTempListArea" style="margin-top:8px; font-size:12px; color:var(--text-muted);">
-                ${isBn ? "(এখনো কোনো পণ্য যুক্ত করা হয়নি)" : "(No items added yet)"}
-              </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-block" style="font-weight:800; height:42px;">
-              🎁 ${isBn ? "কম্বো প্যাক সংরক্ষণ করুন" : "Save Combo Pack to Catalog"}
-            </button>
-          </form>
-
-          ${comboProds.length > 0 ? `
-            <div style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:12px;">
-              <div style="font-size:12.5px; font-weight:800; margin-bottom:8px;">📋 ${isBn ? `বর্তমান সক্রিয় কম্বো প্যাকসমূহ (${comboProds.length} টি):` : `Active Combo Packs (${comboProds.length}):`}</div>
-              <div style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
-                ${comboProds.map(cp => `
-                  <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-surface-alt); padding:7px 10px; border-radius:6px; border:1px solid var(--border-color); font-size:12px;">
-                    <div>
-                      <strong>🎁 ${escapeHtml(cp.name)}</strong> — <span style="color:var(--primary); font-weight:800;">${formatMoney(cp.sellingPrice)}</span>
-                      <div style="font-size:11px; color:var(--text-muted);">
-                        ${(cp.comboItems || []).map(ci => `${escapeHtml(ci.name)} x${ci.qty}`).join(", ")}
-                      </div>
-                    </div>
-                    <button type="button" class="btn btn-xs btn-primary" onclick="App.addToCart('${cp.id}'); App.closeModal(); App.navigate('sales');">🛒 POS</button>
-                  </div>
-                `).join("")}
-              </div>
-            </div>
-          ` : ""}
-        </div>
-      `;
-      this.openModal(html);
-    };
-
-    window.App.addTempComboItem = async function() {
-      const prodId = document.getElementById("comboSelectProd")?.value;
-      const qty = parseFloat(document.getElementById("comboSelectQty")?.value) || 1;
-      if (!prodId) return;
-      const p = await dbGet("products", prodId);
-      if (!p) return;
-      if (!this._tempComboItems) this._tempComboItems = [];
-      const existing = this._tempComboItems.find(i => i.productId === prodId);
-      if (existing) existing.qty += qty;
-      else this._tempComboItems.push({ productId: p.id, name: p.name, qty, cost: parseFloat(p.purchasePrice) || 0, price: parseFloat(p.sellingPrice) || 0 });
-      this.renderTempComboItems();
-    };
-
-    window.App.renderTempComboItems = function() {
-      const area = document.getElementById("comboTempListArea");
-      if (!area) return;
-      const list = this._tempComboItems || [];
-      if (list.length === 0) {
-        area.innerHTML = "(কোনো পণ্য যুক্ত করা হয়নি)";
-        return;
-      }
-      const totalRegPrice = list.reduce((s, i) => s + i.price * i.qty, 0);
-      area.innerHTML = list.map((i, idx) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:4px; margin-bottom:4px;">
-          <span><strong>${escapeHtml(i.name)}</strong> × ${i.qty} (নিয়মিত: ${formatMoney(i.price * i.qty)})</span>
-          <button type="button" class="btn btn-xs btn-outline c-danger" onclick="App._tempComboItems.splice(${idx},1); App.renderTempComboItems();">✕</button>
-        </div>
-      `).join("") + `<div style="font-weight:700; color:var(--primary); margin-top:4px;">মোট নিয়মিত মূল্য: ${formatMoney(totalRegPrice)}</div>`;
-      const priceInp = document.getElementById("comboPackPrice");
-      if (priceInp && !priceInp.value) priceInp.value = Math.max(0, roundMoney(totalRegPrice * 0.9));
-    };
-
-    window.App.saveComboPackProduct = async function() {
-      const isBn = ((window.App?.currentLang || "bn") === "bn");
-      const name = (document.getElementById("comboPackName")?.value || "").trim();
-      const sellPrice = parseFloat(document.getElementById("comboPackPrice")?.value) || 0;
-      const items = this._tempComboItems || [];
-      if (!name || items.length === 0) {
-        return showToast(isBn ? "কম্বোর নাম দিন এবং কমপক্ষে ১টি পণ্য যুক্ত করুন!" : "Enter combo name and add at least 1 product!", "warning");
-      }
-      const totalCost = items.reduce((s, i) => s + (parseFloat(i.cost) || 0) * (parseFloat(i.qty) || 1), 0);
-      const id = "COMBO-" + Date.now();
-      const nowIso = new Date().toISOString();
-      await dbPut("products", {
-        id,
-        name: "🎁 " + name,
-        category: "Combo / Offer Pack",
-        unit: "pack",
-        sku: id,
-        barcode: id,
-        purchasePrice: roundMoney(totalCost),
-        sellingPrice: roundMoney(sellPrice),
-        wholesalePrice: roundMoney(sellPrice),
-        currentStock: 999,
-        minStock: 1,
-        isComboPack: true,
-        comboItems: items,
-        status: "Active",
-        createdAt: nowIso,
-        updatedAt: nowIso
-      });
-      this.closeModal();
-      showToast(isBn ? "🎉 কম্বো প্যাক সফলভাবে তৈরি হয়েছে এবং POS ক্যাটালগে যুক্ত হয়েছে!" : "🎉 Combo Pack created and added to POS catalog!", "success");
-      if (this.currentView === "products") renderProducts(document.getElementById("viewContainer"));
-      else if (this.currentView === "sales") renderSalesPOS(document.getElementById("viewContainer"));
-    };
-
-    // ============================================================================
     // 9. LOYALTY POINTS & CUSTOMER CREDIT LIMIT CONTROL CENTER MODAL
     // ============================================================================
     window.App.openLoyaltyCreditQuickModal = async function() {
@@ -68121,14 +68299,13 @@ window.App.deletePurchase = async function(purchaseId) {
     })();
 
     // ============================================================================
-    // STANDALONE ENTERPRISE MODULES SUITE (7 FULL STANDALONE MODULES)
+    // STANDALONE ENTERPRISE MODULES SUITE
     // 1. Warranty, Service & RMA Center (warranty_center / warranty_lookup)
     // 2. Damage, Waste & Write-Off Register (damage_register / damage_writeoff)
     // 3. Cheque & PDC Clearing Register (cheque_register)
     // 4. Smart Reorder & Procurement Board (smart_reorder)
-    // 5. Combo & Bundle Packs Catalog (combo_packs / combo_pack)
-    // 6. Loyalty, Membership Tiers & Coupons Hub (loyalty_center / loyalty_credit)
-    // 7. Fixed Assets & Depreciation Register (fixed_assets)
+    // 5. Loyalty, Membership Tiers & Coupons Hub (loyalty_center / loyalty_credit)
+    // 6. Fixed Assets & Depreciation Register (fixed_assets)
     // ============================================================================
     (function initStandaloneEnterpriseModulesSuite() {
       const getIsBn = () => ((window.App?.currentLang || "bn") === "bn");
@@ -69730,161 +69907,6 @@ window.App.deletePurchase = async function(purchaseId) {
         showToast(`📋 ক্রয় অর্ডার (#${poId}) সফলভাবে সংরক্ষিত হয়েছে!`, "success");
         this.navigate("purchase_orders");
       };
-
-      // --------------------------------------------------------------------------
-      // 5. COMBO & BUNDLE PACKS CATALOG (কম্বো ও বান্ডেল প্যাক ক্যাটালগ)
-      // --------------------------------------------------------------------------
-      window.App.comboSearchQuery = window.App.comboSearchQuery || "";
-
-      window.App.onComboPacksSearch = function(val) {
-        window.App.comboSearchQuery = String(val || "");
-        if (typeof window.App.setActivePage === "function") window.App.setActivePage("combo_packs", 1);
-        window.App.renderComboPacksView().then(() => {
-          const inp = document.getElementById("comboSearchInput");
-          if (inp) {
-            inp.focus();
-            const len = inp.value.length;
-            try { inp.setSelectionRange(len, len); } catch (_) {}
-          }
-        });
-      };
-
-      window.App.renderComboPacksView = async function(container) {
-        if (!container) container = document.getElementById("viewContainer");
-        if (!container) return;
-        const isBn = getIsBn();
-        const allProducts = (await dbGetAll("products")) || [];
-        const comboProds = allProducts.filter(p => p.isComboPack);
-
-        let totalPossibleBundles = 0;
-        let totalSavingsSum = 0;
-        comboProds.forEach(cp => {
-          const avail = this.getComboAvailableStock(cp, allProducts);
-          totalPossibleBundles += avail;
-          const regPrice = (cp.comboItems || []).reduce((s, i) => s + (parseFloat(i.price) || 0) * (parseFloat(i.qty) || 1), 0);
-          const sellPrice = parseFloat(cp.sellingPrice) || 0;
-          if (regPrice > sellPrice) totalSavingsSum += (regPrice - sellPrice);
-        });
-
-        const cbSearch = (window.App.comboSearchQuery || "").trim().toLowerCase();
-        const filteredComboProds = cbSearch
-          ? comboProds.filter(cp => `${cp.name || ""} ${cp.sku || ""} ${cp.id || ""}`.toLowerCase().includes(cbSearch))
-          : comboProds;
-
-        if (!window.App._paginationCallbacks) window.App._paginationCallbacks = {};
-        window.App._paginationCallbacks["combo_packs"] = () => window.App.renderComboPacksView();
-        const { pagedItems: pagedCombos, paginationHtml: comboPaginationHtml } = window.App.paginate(filteredComboProds, "combo_packs");
-
-        container.innerHTML = `
-          <div class="card" style="margin-bottom:14px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-              <div>
-                <h2 style="font-size:17px; font-weight:800; margin:0;">🎁 ${isBn ? "কম্বো ও বান্ডেল প্যাক ক্যাটালগ (Combo & Kitting Hub)" : "Combo & Promotional Bundle Packs Catalog"}</h2>
-                <div style="font-size:12px; color:var(--text-muted);">${isBn ? "একাধিক পণ্য মিলিয়ে অফার প্যাকেজ তৈরি করুন; POS এ কম্বো বিক্রি হলে ভেতরের প্রতিটি পণ্যের স্টক স্বয়ংক্রিয়ভাবে সমন্বয় হবে" : "Create multi-item promotional bundles with automatic constituent stock deduction in POS"}</div>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <input type="text" id="comboSearchInput" class="form-control" style="max-width:240px; height:34px; font-size:12px;" placeholder="${isBn ? '🔍 কম্বো প্যাক বা কোড খুঁজুন...' : '🔍 Search combo pack...'}" value="${escapeHtml(window.App.comboSearchQuery || '')}" oninput="App.onComboPacksSearch(this.value)" />
-                <button type="button" class="btn btn-sm btn-primary" onclick="App.openComboPackModal()">
-                  ➕ ${isBn ? "নতুন কম্বো প্যাক তৈরি করুন" : "Create New Combo Pack"}
-                </button>
-              </div>
-            </div>
-
-            <div class="grid-3" style="margin-bottom:14px;">
-              <div style="background:var(--bg-surface-alt); padding:10px 12px; border-radius:8px; border:1px solid var(--border-color);">
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700;">${isBn ? "সক্রিয় কম্বো প্যাক সংখ্যা" : "Active Combo Packs"}</div>
-                <div style="font-size:18px; font-weight:900; color:var(--primary);">${comboProds.length} টি</div>
-              </div>
-              <div style="background:var(--bg-surface-alt); padding:10px 12px; border-radius:8px; border:1px solid var(--border-color);">
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700;">${isBn ? "বর্তমান স্টক অনুযায়ী প্রস্তুতযোগ্য প্যাক" : "Available Bundle Stock"}</div>
-                <div style="font-size:18px; font-weight:900; color:var(--success);">${totalPossibleBundles} প্যাক</div>
-              </div>
-              <div style="background:var(--bg-surface-alt); padding:10px 12px; border-radius:8px; border:1px solid var(--border-color);">
-                <div style="font-size:11px; color:var(--text-muted); font-weight:700;">${isBn ? "কাস্টমারের মোট অফার সাশ্রয়" : "Total Bundle Discount Savings"}</div>
-                <div style="font-size:18px; font-weight:900; color:var(--warning);">${formatMoney(totalSavingsSum)}</div>
-              </div>
-            </div>
-
-            <div class="table-container">
-              <table style="font-size:12px; width:100%;">
-                <thead>
-                  <tr>
-                    <th>${isBn ? "কম্বো প্যাকের নাম ও কোড" : "Combo Name & SKU"}</th>
-                    <th>${isBn ? "অন্তর্ভুক্ত পণ্যসমূহ (Constituent Items)" : "Included Items"}</th>
-                    <th style="text-align:center;">${isBn ? "বিক্রয়যোগ্য প্যাক স্টক" : "Available Bundles"}</th>
-                    <th style="text-align:right;">${isBn ? "নিয়মিত মূল্য বনাম অফার মূল্য" : "Regular vs Offer Price"}</th>
-                    <th style="text-align:right;">${isBn ? "অ্যাকশন" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${pagedCombos.length === 0 ? `
-                    <tr><td colspan="5" style="text-align:center; padding:28px; color:var(--text-muted);">${isBn ? "কোনো কম্বো প্যাক তৈরি করা হয়নি। উপরে 'নতুন কম্বো প্যাক তৈরি করুন' বাটনে ক্লিক করুন।" : "No combo packs created yet."}</td></tr>
-                  ` : pagedCombos.map(cp => {
-                    const avail = this.getComboAvailableStock(cp, allProducts);
-                    const regPrice = (cp.comboItems || []).reduce((s, i) => s + (parseFloat(i.price) || 0) * (parseFloat(i.qty) || 1), 0);
-                    const sellPrice = parseFloat(cp.sellingPrice) || 0;
-                    const saving = Math.max(0, regPrice - sellPrice);
-                    return `
-                      <tr>
-                        <td>
-                          <div style="font-weight:800; font-size:13px;">${escapeHtml(cp.name)}</div>
-                          <div style="font-size:10.5px; font-family:monospace; color:var(--text-muted);">${escapeHtml(cp.sku || cp.id)}</div>
-                        </td>
-                        <td>
-                          <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                            ${(cp.comboItems || []).map(ci => `<span class="badge bg-primary-lt c-primary">${escapeHtml(ci.name)} × ${ci.qty}</span>`).join("")}
-                          </div>
-                        </td>
-                        <td style="text-align:center;">
-                          <span class="badge ${avail > 0 ? 'bg-success-lt c-success' : 'bg-danger-lt c-danger'}" style="font-weight:800;">
-                            ${avail} প্যাক প্রস্তুতযোগ্য
-                          </span>
-                        </td>
-                        <td style="text-align:right; font-family:monospace;">
-                          <div style="font-weight:900; font-size:13.5px; color:var(--primary);">${formatMoney(sellPrice)}</div>
-                          ${saving > 0 ? `<div style="font-size:10.5px; color:var(--success);">নিয়মিত: <del>${formatMoney(regPrice)}</del> (সাশ্রয়: ${formatMoney(saving)})</div>` : ""}
-                        </td>
-                        <td style="text-align:right;">
-                          <div style="display:flex; gap:4px; justify-content:flex-end;">
-                            <button type="button" class="btn btn-xs btn-primary" onclick="App.addToCart('${cp.id}'); App.navigate('sales');">🛒 POS বিক্রয়</button>
-                            <button type="button" class="btn btn-xs btn-outline c-danger" onclick="App.deleteComboPack('${cp.id}')">🗑️</button>
-                          </div>
-                        </td>
-                      </tr>
-                    `;
-                  }).join("")}
-                </tbody>
-              </table>
-            </div>
-            <div style="margin-top:10px;">${comboPaginationHtml}</div>
-          </div>
-        `;
-      };
-
-      window.App.deleteComboPack = async function(comboId) {
-        const isBn = getIsBn();
-        const cp = await dbGet("products", comboId);
-        if (!cp) return;
-        const ok = await App.confirmAction({
-          title: isBn ? "কম্বো প্যাক মুছে ফেলার নিশ্চয়তা" : "Confirm Delete Combo Pack",
-          message: isBn ? `আপনি কি কম্বো প্যাক "${cp.name}" মুছে ফেলতে চান?` : `Delete combo pack "${cp.name}"?`,
-          details: isBn ? "এটি স্মার্ট রিসাইকেল বিনে ৩০ দিন সংরক্ষিত থাকবে। এর ভেতরের একক পণ্যগুলোর স্টক অপরিবর্তিত থাকবে।" : "Moved to Recycle Bin for 30 days.",
-          confirmText: isBn ? "🗑️ রিসাইকেল বিনে পাঠান" : "🗑️ Move to Recycle Bin",
-          cancelText: isBn ? "বাতিল" : "Cancel",
-          danger: true,
-          icon: "🎁"
-        });
-        if (!ok) return;
-
-        await App.moveToRecycleBin("products", cp, {
-          itemType: "combo_pack",
-          title: `কম্বো প্যাক: ${cp.name}`,
-          summary: `অফার মূল্য: ${formatMoney(cp.sellingPrice || 0)} • অন্তর্ভুক্ত পণ্য: ${(cp.comboItems || []).length} টি`
-        });
-        showToast("🗑️ কম্বো প্যাক রিসাইকেল বিনে পাঠানো হয়েছে", "info");
-        this.renderComboPacksView();
-      };
-
       // --------------------------------------------------------------------------
       // 6. LOYALTY POINTS, MEMBERSHIP TIERS & DISCOUNT COUPONS HUB (লয়্যালটি ও কুপন খাতা)
       // --------------------------------------------------------------------------
@@ -70545,10 +70567,8 @@ window.App.deletePurchase = async function(purchaseId) {
         { fn: "saveSmartReorderAsPO", perm: "smart_reorder.convert_po", bn: "স্মার্ট রি-অর্ডার থেকে PO তৈরি", en: "Convert Reorder to PO" },
         { fn: "convertReorderToPurchase", perm: "smart_reorder.convert_po", bn: "স্মার্ট রি-অর্ডার থেকে ক্রয় চালান তৈরি", en: "Convert Reorder to Purchase" },
 
-        // Physical Stock Audit & Combo Packs & Damage Register
+        // Physical Stock Audit & Damage Register
         { fn: "commitPhysicalStockAudit", perm: "stock_audit.reconcile", bn: "ফিজিক্যাল স্টক অডিট ও স্টক সমন্বয়", en: "Commit Physical Stock Audit" },
-        { fn: "openComboPackModal", perm: "combo.manage", bn: "কম্বো ও বান্ডেল প্যাক তৈরি/এডিট", en: "Create/Edit Combo Pack" },
-        { fn: "deleteComboPack", perm: "combo.delete", bn: "কম্বো প্যাক ডিলিট", en: "Delete Combo Pack" },
         { fn: "openCreateDamageVoucherModal", perm: "damage.write_off", bn: "ড্যামেজ ও নষ্ট পণ্য রাইট-অফ এন্ট্রি", en: "Create Damage Write-Off Voucher" },
         { fn: "openQuickDamageWriteOffPicker", perm: "damage.write_off", bn: "দ্রুত ড্যামেজ রাইট-অফ এন্ট্রি", en: "Quick Damage Write-Off" },
         { fn: "reverseDamageWriteOff", perm: "damage.reverse", bn: "ড্যামেজ রাইট-অফ রিভার্স ও স্টক ফেরত", en: "Reverse Damage Write-Off" },
