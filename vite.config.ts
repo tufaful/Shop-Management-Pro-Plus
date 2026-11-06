@@ -7,6 +7,8 @@ const rootDir = import.meta.dirname || '.';
 export default defineConfig(() => {
   return {
     optimizeDeps: {
+      noDiscovery: true,
+      include: [],
       entries: [],
     },
     plugins: [
