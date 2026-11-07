@@ -3862,6 +3862,680 @@ body {
       gap: 6px !important;
     }
   }
+
+  /* =========================================================
+   * DESKTOP ENTERPRISE WORKSPACE & COLLAPSIBLE SIDEBAR (>=1024px)
+   * ========================================================= */
+  .desktop-sidebar {
+    display: none;
+  }
+  .desktop-header-context-bar {
+    display: none;
+  }
+  @media (max-width: 1023px) {
+    html body .desktop-only-block,
+    html body .desktop-only-flex,
+    html body button.btn.desktop-only-flex:not(.print-preview-modal-dialog *),
+    html body .btn.desktop-only-flex:not(.print-preview-modal-dialog *) {
+      display: none !important;
+    }
+    html body .mobile-tablet-only-flex {
+      display: inline-flex !important;
+    }
+  }
+  @media (max-width: 768px) {
+    .dash-top-action-group {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 8px !important;
+      width: 100% !important;
+    }
+    .dash-top-action-group > .btn,
+    .dash-top-action-group > .desktop-more-dropdown-wrap,
+    .dash-top-action-group > .desktop-more-dropdown-wrap > .desktop-more-dropdown-btn {
+      width: 100% !important;
+      justify-content: center !important;
+      min-height: 38px !important;
+    }
+  }
+
+  /* Universal Action Dropdown Menu (Body-Level Portal & Smart Viewport-Clamped Layer) */
+  .desktop-more-dropdown-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .desktop-more-dropdown-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    background: var(--bg-surface-alt);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.16s ease;
+    box-shadow: var(--shadow-xs);
+  }
+  .desktop-more-dropdown-btn:hover,
+  .desktop-more-dropdown-wrap.open .desktop-more-dropdown-btn {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+  }
+  .desktop-more-dropdown-menu {
+    position: fixed !important;
+    top: 60px;
+    left: 12px;
+    right: auto !important;
+    min-width: 225px;
+    max-width: min(290px, calc(100vw - 24px));
+    max-height: min(380px, calc(100vh - 96px));
+    overflow-y: auto;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.28), 0 8px 20px rgba(15, 23, 42, 0.14);
+    padding: 6px;
+    z-index: 100050 !important;
+    display: none;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .desktop-more-dropdown-wrap.open .desktop-more-dropdown-menu,
+  body > .desktop-more-dropdown-menu.portal-open {
+    display: flex !important;
+    animation: smpDropdownFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes smpDropdownFadeIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .desktop-more-dropdown-menu .btn,
+  .desktop-more-dropdown-menu button,
+  body > .desktop-more-dropdown-menu.portal-open .btn:not(.print-preview-modal-dialog *),
+  body > .desktop-more-dropdown-menu.portal-open button:not(.print-preview-modal-dialog *) {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding: 9px 12px !important;
+    height: auto !important;
+    min-height: 38px !important;
+    border-radius: 8px !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+    border: 1px solid transparent !important;
+    background: transparent !important;
+    color: var(--text-main) !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    transition: background 0.14s ease, color 0.14s ease !important;
+  }
+  .desktop-more-dropdown-menu .btn:hover,
+  .desktop-more-dropdown-menu button:hover,
+  body > .desktop-more-dropdown-menu.portal-open .btn:hover,
+  body > .desktop-more-dropdown-menu.portal-open button:hover {
+    background: var(--bg-surface-alt) !important;
+    color: var(--primary) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --desktop-sidebar-width: 256px;
+    }
+    body.desktop-sidebar-collapsed {
+      --desktop-sidebar-width: 68px;
+    }
+
+    html body .desktop-only-block {
+      display: block !important;
+    }
+    html body .desktop-only-flex,
+    html body button.btn.desktop-only-flex:not(.print-preview-modal-dialog *) {
+      display: inline-flex !important;
+    }
+    html body .mobile-tablet-only-flex {
+      display: none !important;
+    }
+
+    /* Hide Horizontal Tab Ribbon on Desktop — Replaced by Left Sidebar */
+    .app-nav-wrapper {
+      display: none !important;
+    }
+
+    /* Fixed Left Collapsible Sidebar */
+    .desktop-sidebar {
+      display: flex !important;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: var(--desktop-sidebar-width, 256px);
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-color);
+      z-index: 1020;
+      transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      user-select: none;
+      overflow: hidden;
+      box-shadow: 2px 0 12px rgba(15, 23, 42, 0.03);
+    }
+
+    /* Sidebar Brand Top Bar */
+    .desktop-sidebar-top {
+      height: 54px;
+      min-height: 54px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-surface);
+    }
+    .desktop-sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      cursor: pointer;
+      flex: 1;
+      overflow: hidden;
+    }
+    .desktop-sidebar-brand-logo {
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+      color: #fff;
+      font-weight: 900;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 8px rgba(37, 99, 235, 0.25);
+    }
+    .desktop-sidebar-brand-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      transition: opacity 0.16s ease;
+    }
+    .desktop-sidebar-brand-title {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.2;
+    }
+    .desktop-sidebar-brand-sub {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 1px;
+    }
+    .desktop-sidebar-toggle-btn {
+      width: 30px;
+      height: 30px;
+      min-width: 30px;
+      border-radius: 7px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface-alt);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 13px;
+    }
+    .desktop-sidebar-toggle-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    /* Sidebar Search Box */
+    .desktop-sidebar-search-wrap {
+      padding: 10px 12px 8px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-surface-alt);
+    }
+    .desktop-sidebar-search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .desktop-sidebar-search-box input {
+      width: 100%;
+      height: 32px;
+      padding: 0 26px 0 28px;
+      border-radius: 7px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .desktop-sidebar-search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+    }
+    .desktop-sidebar-search-icon {
+      position: absolute;
+      left: 9px;
+      font-size: 12px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* Sidebar Scrollable Navigation List */
+    .desktop-sidebar-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 8px 8px 14px;
+      scrollbar-width: thin;
+    }
+    .desktop-sidebar-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .desktop-sidebar-scroll::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    .desktop-nav-group {
+      margin-bottom: 8px;
+    }
+    .desktop-nav-group-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.55px;
+      cursor: pointer;
+      text-align: left;
+      border-radius: 6px;
+      transition: color 0.15s ease;
+    }
+    .desktop-nav-group-header:hover {
+      color: var(--text-main);
+    }
+    .desktop-nav-group-chevron {
+      font-size: 10px;
+      transition: transform 0.18s ease;
+      opacity: 0.75;
+    }
+    .desktop-nav-group.collapsed .desktop-nav-group-chevron {
+      transform: rotate(-90deg);
+    }
+    .desktop-nav-group.collapsed .desktop-nav-group-items {
+      display: none;
+    }
+    .desktop-nav-group-items {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .desktop-nav-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      min-height: 36px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .desktop-nav-item:hover {
+      background: var(--bg-surface-alt);
+      color: var(--text-main);
+    }
+    .desktop-nav-item.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      border-color: rgba(37, 99, 235, 0.22);
+      font-weight: 700;
+    }
+    .desktop-nav-item.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3.5px;
+      border-radius: 0 4px 4px 0;
+      background: var(--primary);
+    }
+    .desktop-nav-icon {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .desktop-nav-label {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.25;
+    }
+    .desktop-nav-badge {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(37, 99, 235, 0.12);
+      color: var(--primary);
+      flex-shrink: 0;
+    }
+
+    /* Sidebar Footer */
+    .desktop-sidebar-footer {
+      padding: 8px 10px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-surface-alt);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .desktop-sidebar-all-btn {
+      flex: 1;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .desktop-sidebar-all-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    /* Collapsed Sidebar Rail State (68px) */
+    body.desktop-sidebar-collapsed .desktop-sidebar-brand-text,
+    body.desktop-sidebar-collapsed .desktop-sidebar-search-wrap,
+    body.desktop-sidebar-collapsed .desktop-nav-group-header,
+    body.desktop-sidebar-collapsed .desktop-nav-label,
+    body.desktop-sidebar-collapsed .desktop-nav-badge,
+    body.desktop-sidebar-collapsed .desktop-sidebar-all-label {
+      display: none !important;
+    }
+    body.desktop-sidebar-collapsed .desktop-sidebar-brand {
+      display: none !important;
+    }
+    body.desktop-sidebar-collapsed .desktop-sidebar-top {
+      justify-content: center;
+      padding: 0 6px;
+    }
+    body.desktop-sidebar-collapsed .desktop-nav-group.collapsed .desktop-nav-group-items {
+      display: flex !important;
+    }
+    body.desktop-sidebar-collapsed .desktop-nav-item {
+      justify-content: center;
+      padding: 8px 0;
+    }
+    body.desktop-sidebar-collapsed .desktop-nav-icon {
+      font-size: 17px;
+    }
+
+    /* Shift Top App Header & Main Container to match Sidebar */
+    .app-header {
+      margin-left: var(--desktop-sidebar-width, 256px) !important;
+      width: calc(100% - var(--desktop-sidebar-width, 256px)) !important;
+      max-width: none !important;
+      height: 54px !important;
+      padding: 0 22px !important;
+      transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* Hide redundant brand logo in top header on desktop since it sits in left sidebar */
+    .app-header .header-brand {
+      display: none !important;
+    }
+    .app-header .header-hamburger-btn {
+      display: none !important;
+    }
+
+    /* Contextual Breadcrumb & Quick Command Bar inside Top Header */
+    .desktop-header-context-bar {
+      display: flex !important;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+      flex: 1;
+    }
+    .desktop-breadcrumb-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-color);
+      min-width: 0;
+    }
+    .desktop-breadcrumb-cat {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .desktop-breadcrumb-sep {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    .desktop-breadcrumb-page {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .desktop-header-quick-search {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 8px;
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 210px;
+      justify-content: space-between;
+    }
+    .desktop-header-quick-search:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+      background: var(--bg-surface);
+    }
+    .desktop-header-kbd {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+    .desktop-header-pos-btn {
+      height: 34px;
+      padding: 0 13px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      border: none;
+      font-size: 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+      transition: transform 0.14s ease, box-shadow 0.14s ease;
+      white-space: nowrap;
+    }
+    .desktop-header-pos-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Full-Screen Wide Workspace Container */
+    .app-main {
+      margin-left: var(--desktop-sidebar-width, 256px) !important;
+      width: calc(100% - var(--desktop-sidebar-width, 256px)) !important;
+      max-width: none !important;
+      padding: 18px 24px 48px !important;
+      transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1), width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Clean Unified Card Header & Action Bar on Desktop */
+    .card-header {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      flex-wrap: nowrap !important;
+      gap: 16px !important;
+      padding: 14px 20px !important;
+    }
+    .card-header .action-btn-grid {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+      gap: 8px !important;
+      width: auto !important;
+    }
+
+    /* Unified Single-Line Filter & Search Command Bar on Desktop */
+    .desktop-unified-toolbar {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 12px !important;
+      flex-wrap: nowrap !important;
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+
+    /* Dashboard Executive Grid & KPI Strip Optimization on Desktop */
+    .retail-hero-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      gap: 12px !important;
+    }
+    .product-kpi-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: 12px !important;
+    }
+    /* Hide scattered multi-row quick action grids on Desktop when Unified Executive Bar is shown */
+    .desktop-hide-scattered-actions {
+      display: none !important;
+    }
+
+    /* Desktop POS Split-Screen Terminal Optimization */
+    .pos-layout {
+      grid-template-columns: minmax(0, 1fr) 430px !important;
+      gap: 16px !important;
+      align-items: start !important;
+    }
+    .pos-billing-panel {
+      position: sticky !important;
+      top: 68px !important;
+      max-height: calc(100vh - 84px) !important;
+      overflow-y: auto !important;
+    }
+    .pos-catalog-panel .product-grid {
+      grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)) !important;
+      gap: 10px !important;
+      max-height: calc(100vh - 230px) !important;
+    }
+
+    /* Data Tables: Crisp Density & Sticky Headers on Desktop */
+    .table-container {
+      border-radius: 10px !important;
+    }
+    .table-container table th {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg-surface-alt);
+      white-space: nowrap;
+    }
+  }
+
+  @media (min-width: 1360px) {
+    .retail-hero-strip {
+      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+      gap: 12px !important;
+    }
+    .pos-layout {
+      grid-template-columns: minmax(0, 1fr) 460px !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -3881,10 +4555,265 @@ body {
     <div id="leftDrawerContent" style="flex:1; overflow-y:auto; padding:0;" onclick="App.handleDrawerItemClick(event)"></div>
   </div>
 
+  <!-- Desktop Persistent Collapsible Left Sidebar (>=1024px) -->
+  <aside id="desktopSidebar" class="desktop-sidebar" aria-label="Desktop Workspace Navigation">
+    <div class="desktop-sidebar-top">
+      <div class="desktop-sidebar-brand" onclick="App.navigate('dashboard')" title="Shop Management Pro Dashboard">
+        <div class="desktop-sidebar-brand-logo" id="desktopSidebarLogo">SMP</div>
+        <div class="desktop-sidebar-brand-text">
+          <span class="desktop-sidebar-brand-title" id="desktopSidebarShopName">Shop Management Pro</span>
+          <span class="desktop-sidebar-brand-sub" data-en="Enterprise POS & ERP" data-bn="এন্টারপ্রাইজ পিওএস ও ইআরপি">এন্টারপ্রাইজ পিওএস ও ইআরপি</span>
+        </div>
+      </div>
+      <button type="button" class="desktop-sidebar-toggle-btn" id="desktopSidebarToggleBtn" onclick="App.toggleDesktopSidebar()" title="Collapse / Expand Sidebar (Alt+S)">
+        <span id="desktopSidebarToggleIcon">◀</span>
+      </button>
+    </div>
+
+    <div class="desktop-sidebar-search-wrap">
+      <div class="desktop-sidebar-search-box">
+        <span class="desktop-sidebar-search-icon">🔍</span>
+        <input type="text" id="desktopSidebarSearchInput" placeholder="মেনু খুঁজুন..." data-placeholder-en="Filter menu..." data-placeholder-bn="মেনু খুঁজুন..." oninput="App.filterDesktopSidebar(this.value)" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="desktop-sidebar-scroll" id="desktopSidebarNavScroll">
+      <!-- Group 1: Core & Sales -->
+      <div class="desktop-nav-group" data-group-id="core_sales">
+        <button type="button" class="desktop-nav-group-header" onclick="App.toggleDesktopSidebarGroup('core_sales')">
+          <span data-en="Sales & Operations" data-bn="বিক্রয় ও মূল কার্যক্রম">বিক্রয় ও মূল কার্যক্রম</span>
+          <span class="desktop-nav-group-chevron">▾</span>
+        </button>
+        <div class="desktop-nav-group-items">
+          <button type="button" class="desktop-nav-item active" data-view="dashboard" onclick="App.navigate('dashboard')" title="ড্যাশবোর্ড (Dashboard)">
+            <span class="desktop-nav-icon">📊</span>
+            <span class="desktop-nav-label" data-en="Dashboard" data-bn="ড্যাশবোর্ড">ড্যাশবোর্ড</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="sales" onclick="App.navigate('sales')" title="বিক্রয় / পিওএস (POS Terminal)">
+            <span class="desktop-nav-icon">🛒</span>
+            <span class="desktop-nav-label" data-en="Sales / POS" data-bn="বিক্রয় (POS)">বিক্রয় (POS)</span>
+            <span class="desktop-nav-badge">F2</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="invoices" onclick="App.navigate('invoices')" title="সকল বিক্রয় চালান (All Invoices)">
+            <span class="desktop-nav-icon">🧾</span>
+            <span class="desktop-nav-label" data-en="Sales Invoices" data-bn="সকল বিক্রয় ইনভয়েস">সকল বিক্রয় ইনভয়েস</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="quotations" onclick="App.navigate('quotations')" title="প্রাইস কোটেশন ও এস্টিমেট (Quotations)">
+            <span class="desktop-nav-icon">📋</span>
+            <span class="desktop-nav-label" data-en="Quotations & Estimates" data-bn="প্রাইস কোটেশন">প্রাইস কোটেশন</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="sales_returns" onclick="App.navigate('sales_returns')" title="বিক্রয় ফেরত তালিকা (Sales Returns)">
+            <span class="desktop-nav-icon">↩️</span>
+            <span class="desktop-nav-label" data-en="Sales Returns" data-bn="বিক্রয় ফেরত">বিক্রয় ফেরত</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="deliveries" onclick="App.navigate('deliveries')" title="ডেলিভারি ও কুরিয়ার ট্র্যাকিং (Delivery & Courier)">
+            <span class="desktop-nav-icon">🛵</span>
+            <span class="desktop-nav-label" data-en="Delivery & Courier" data-bn="ডেলিভারি ও কুরিয়ার">ডেলিভারি ও কুরিয়ার</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="warranty_center" onclick="App.navigate('warranty_center')" title="ওয়ারেন্টি ও সার্ভিসিং সেন্টার (Warranty & RMA)">
+            <span class="desktop-nav-icon">🛡️</span>
+            <span class="desktop-nav-label" data-en="Warranty & Servicing" data-bn="ওয়ারেন্টি ও সার্ভিসিং">ওয়ারেন্টি ও সার্ভিসিং</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Group 2: Inventory & Procurement -->
+      <div class="desktop-nav-group" data-group-id="inventory_proc">
+        <button type="button" class="desktop-nav-group-header" onclick="App.toggleDesktopSidebarGroup('inventory_proc')">
+          <span data-en="Inventory & Purchase" data-bn="পণ্য ও ক্রয় ব্যবস্থাপনা">পণ্য ও ক্রয় ব্যবস্থাপনা</span>
+          <span class="desktop-nav-group-chevron">▾</span>
+        </button>
+        <div class="desktop-nav-group-items">
+          <button type="button" class="desktop-nav-item" data-view="products" onclick="App.navigate('products')" title="পণ্য তালিকা ও স্টক (Products & Stock)">
+            <span class="desktop-nav-icon">📦</span>
+            <span class="desktop-nav-label" data-en="Products & Stock" data-bn="পণ্য ও স্টক">পণ্য ও স্টক</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="purchases" onclick="App.navigate('purchases')" title="ক্রয় চালান ও স্টক ইন (Purchases)">
+            <span class="desktop-nav-icon">📥</span>
+            <span class="desktop-nav-label" data-en="Purchase / Stock In" data-bn="ক্রয় (স্টক ইন)">ক্রয় (স্টক ইন)</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="purchase_orders" onclick="App.navigate('purchase_orders')" title="ক্রয় অর্ডার / চাহিদাপত্র (Purchase Orders)">
+            <span class="desktop-nav-icon">📝</span>
+            <span class="desktop-nav-label" data-en="Purchase Orders (PO)" data-bn="ক্রয় অর্ডার (PO)">ক্রয় অর্ডার (PO)</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="purchase_returns" onclick="App.navigate('purchase_returns')" title="ক্রয় ফেরত চালান (Purchase Returns)">
+            <span class="desktop-nav-icon">🔄</span>
+            <span class="desktop-nav-label" data-en="Purchase Returns" data-bn="ক্রয় ফেরত">ক্রয় ফেরত</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="stock_history" onclick="App.navigate('stock_history')" title="স্টক হিস্ট্রি ও ট্র্যাকিং (Stock History)">
+            <span class="desktop-nav-icon">📜</span>
+            <span class="desktop-nav-label" data-en="Stock History" data-bn="স্টক হিস্ট্রি">স্টক হিস্ট্রি</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="stock_audit" onclick="App.navigate('stock_audit')" title="ফিজিক্যাল স্টক অডিট ও মিলকরণ (Stock Audit)">
+            <span class="desktop-nav-icon">🔍</span>
+            <span class="desktop-nav-label" data-en="Physical Stock Audit" data-bn="স্টক অডিট ও মিলকরণ">স্টক অডিট ও মিলকরণ</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="smart_reorder" onclick="App.navigate('smart_reorder')" title="স্মার্ট রি-অর্ডার ও বাজারের ফর্দ (Smart Reorder)">
+            <span class="desktop-nav-icon">📈</span>
+            <span class="desktop-nav-label" data-en="Smart Reorder List" data-bn="স্মার্ট রি-অর্ডার ফর্দ">স্মার্ট রি-অর্ডার ফর্দ</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="batches" onclick="App.navigate('batches')" title="ব্যাচ ও মেয়াদ ব্যবস্থাপনা (Batch Management)">
+            <span class="desktop-nav-icon">🏷️</span>
+            <span class="desktop-nav-label" data-en="Batch & Lot Tracking" data-bn="ব্যাচ ও লট ট্র্যাকিং">ব্যাচ ও লট ট্র্যাকিং</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="expiry" onclick="App.navigate('expiry')" title="মেয়াদ উত্তীর্ণ অ্যালার্ট (Expiry Alerts)">
+            <span class="desktop-nav-icon">⏳</span>
+            <span class="desktop-nav-label" data-en="Expiry Alerts" data-bn="মেয়াদ উত্তীর্ণ অ্যালার্ট">মেয়াদ উত্তীর্ণ অ্যালার্ট</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="damage_register" onclick="App.navigate('damage_register')" title="ড্যামেজ ও নষ্ট পণ্য খাতা (Damage Register)">
+            <span class="desktop-nav-icon">⚠️</span>
+            <span class="desktop-nav-label" data-en="Damage & Write-Off" data-bn="ড্যামেজ ও নষ্ট পণ্য">ড্যামেজ ও নষ্ট পণ্য</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="barcode" onclick="App.navigate('barcode')" title="বারকোড ও প্রাইস ট্যাগ স্টুডিও (Barcode Studio)">
+            <span class="desktop-nav-icon">🖨️</span>
+            <span class="desktop-nav-label" data-en="Barcode Label Studio" data-bn="বারকোড ও প্রাইস ট্যাগ">বারকোড ও প্রাইস ট্যাগ</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="categories" onclick="App.navigate('categories')" title="ক্যাটাগরি ও একক (Categories & Units)">
+            <span class="desktop-nav-icon">🗂️</span>
+            <span class="desktop-nav-label" data-en="Categories & Units" data-bn="ক্যাটাগরি ও একক">ক্যাটাগরি ও একক</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Group 3: Parties, CRM & Dues -->
+      <div class="desktop-nav-group" data-group-id="parties_crm">
+        <button type="button" class="desktop-nav-group-header" onclick="App.toggleDesktopSidebarGroup('parties_crm')">
+          <span data-en="Customers, Suppliers & Dues" data-bn="কাস্টমার, মহাজন ও বাকি">কাস্টমার, মহাজন ও বাকি</span>
+          <span class="desktop-nav-group-chevron">▾</span>
+        </button>
+        <div class="desktop-nav-group-items">
+          <button type="button" class="desktop-nav-item" data-view="customers" onclick="App.navigate('customers')" title="কাস্টমার অ্যাকাউন্ট ও খতিয়ান (Customers)">
+            <span class="desktop-nav-icon">👥</span>
+            <span class="desktop-nav-label" data-en="Customers" data-bn="কাস্টমার খতিয়ান">কাস্টমার খতিয়ান</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="suppliers" onclick="App.navigate('suppliers')" title="মহাজন তালিকা ও অ্যাকাউন্ট (Suppliers)">
+            <span class="desktop-nav-icon">🚚</span>
+            <span class="desktop-nav-label" data-en="Suppliers" data-bn="মহাজন খতিয়ান">মহাজন খতিয়ান</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="due" onclick="App.navigate('due')" title="বাকি খাতা ও তাগাদা (Due Ledger)">
+            <span class="desktop-nav-icon">📒</span>
+            <span class="desktop-nav-label" data-en="Due Ledger Book" data-bn="বাকি খাতা (Due)">বাকি খাতা (Due)</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="emi_ledger" onclick="App.navigate('emi_ledger')" title="কিস্তি (EMI) খাতা (EMI Installments)">
+            <span class="desktop-nav-icon">📅</span>
+            <span class="desktop-nav-label" data-en="EMI Installments" data-bn="কিস্তি (EMI) খাতা">কিস্তি (EMI) খাতা</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="loyalty_center" onclick="App.navigate('loyalty_center')" title="লয়্যালটি পয়েন্ট, মেম্বারশিপ ও কুপন (Loyalty & Coupons)">
+            <span class="desktop-nav-icon">🎁</span>
+            <span class="desktop-nav-label" data-en="Loyalty & Coupons" data-bn="লয়্যালটি ও কুপন">লয়্যালটি ও কুপন</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Group 4: Accounts, Finance & Reports -->
+      <div class="desktop-nav-group" data-group-id="finance_reports">
+        <button type="button" class="desktop-nav-group-header" onclick="App.toggleDesktopSidebarGroup('finance_reports')">
+          <span data-en="Finance, Accounts & Reports" data-bn="হিসাব, ক্যাশ ও রিপোর্ট">হিসাব, ক্যাশ ও রিপোর্ট</span>
+          <span class="desktop-nav-group-chevron">▾</span>
+        </button>
+        <div class="desktop-nav-group-items">
+          <button type="button" class="desktop-nav-item" data-view="cash_closing" onclick="App.navigate('cash_closing')" title="দৈনিক ক্যাশ ক্লোজিং (Daily Cash Closing)">
+            <span class="desktop-nav-icon">🏦</span>
+            <span class="desktop-nav-label" data-en="Daily Cash Closing" data-bn="দৈনিক ক্যাশ ক্লোজিং">দৈনিক ক্যাশ ক্লোজিং</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="cash_ledger" onclick="App.navigate('cash_ledger')" title="ক্যাশ খতিয়ান ও রোকড় বই (Cash Ledger)">
+            <span class="desktop-nav-icon">💵</span>
+            <span class="desktop-nav-label" data-en="Cash Book & Register" data-bn="ক্যাশ খতিয়ান (রোকড়)">ক্যাশ খতিয়ান (রোকড়)</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="bank_ledger" onclick="App.navigate('bank_ledger')" title="ব্যাংক খতিয়ান ও ওয়ালেট (Bank & Mobile Wallets)">
+            <span class="desktop-nav-icon">💳</span>
+            <span class="desktop-nav-label" data-en="Bank & Mobile Banking" data-bn="ব্যাংক ও এমএফএস">ব্যাংক ও এমএফএস</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="cheque_register" onclick="App.navigate('cheque_register')" title="চেক ও ব্যাংক ক্লিয়ারিং খাতা (Cheque & PDC)">
+            <span class="desktop-nav-icon">🎫</span>
+            <span class="desktop-nav-label" data-en="Cheque & PDC Register" data-bn="চেক ও ক্লিয়ারিং খাতা">চেক ও ক্লিয়ারিং খাতা</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="expenses" onclick="App.navigate('expenses')" title="খরচের খাতা (Expense Register)">
+            <span class="desktop-nav-icon">💸</span>
+            <span class="desktop-nav-label" data-en="Expenses" data-bn="খরচের খাতা">খরচের খাতা</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="income" onclick="App.navigate('income')" title="অন্যান্য আয়ের হিসাব (Other Income)">
+            <span class="desktop-nav-icon">💰</span>
+            <span class="desktop-nav-label" data-en="Other Income" data-bn="অন্যান্য আয়">অন্যান্য আয়</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="recurring" onclick="App.navigate('recurring')" title="রিপিটিং চার্জ ও বিল (Recurring Bills)">
+            <span class="desktop-nav-icon">🔁</span>
+            <span class="desktop-nav-label" data-en="Recurring Bills" data-bn="মাসিক বাঁধাধরা বিল">মাসিক বাঁধাধরা বিল</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="capital" onclick="App.navigate('capital')" title="মূলধন ও উত্তোলন (Capital & Drawings)">
+            <span class="desktop-nav-icon">🤝</span>
+            <span class="desktop-nav-label" data-en="Capital & Drawings" data-bn="মূলধন ও উত্তোলন">মূলধন ও উত্তোলন</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="fixed_assets" onclick="App.navigate('fixed_assets')" title="স্থায়ী সম্পদ খাতা (Fixed Assets)">
+            <span class="desktop-nav-icon">🏢</span>
+            <span class="desktop-nav-label" data-en="Fixed Assets" data-bn="স্থায়ী সম্পদ খাতা">স্থায়ী সম্পদ খাতা</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="vat_ledger" onclick="App.navigate('vat_ledger')" title="ভ্যাট ও ট্যাক্স লেজার (VAT & Tax)">
+            <span class="desktop-nav-icon">🏛️</span>
+            <span class="desktop-nav-label" data-en="VAT & Tax Ledger" data-bn="ভ্যাট ও ট্যাক্স খতিয়ান">ভ্যাট ও ট্যাক্স খতিয়ান</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="inventory_valuation" onclick="App.navigate('inventory_valuation')" title="স্টক মূল্যায়ন রিপোর্ট (Inventory Valuation)">
+            <span class="desktop-nav-icon">📊</span>
+            <span class="desktop-nav-label" data-en="Stock Valuation" data-bn="স্টক মূল্যায়ন রিপোর্ট">স্টক মূল্যায়ন রিপোর্ট</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="reports" onclick="App.navigate('reports')" title="ব্যবসায়িক রিপোর্ট প্যানেল (Business Reports)">
+            <span class="desktop-nav-icon">📈</span>
+            <span class="desktop-nav-label" data-en="Business Reports" data-bn="ব্যবসায়িক রিপোর্ট">ব্যবসায়িক রিপোর্ট</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Group 5: Staff, Tools & Administration -->
+      <div class="desktop-nav-group" data-group-id="staff_system">
+        <button type="button" class="desktop-nav-group-header" onclick="App.toggleDesktopSidebarGroup('staff_system')">
+          <span data-en="Staff, Security & System" data-bn="স্টাফ, নিরাপত্তা ও সেটিংস">স্টাফ, নিরাপত্তা ও সেটিংস</span>
+          <span class="desktop-nav-group-chevron">▾</span>
+        </button>
+        <div class="desktop-nav-group-items">
+          <button type="button" class="desktop-nav-item" data-view="staff_payroll" onclick="App.navigate('staff_payroll')" title="স্টাফ বেতন, হাজিরা ও অগ্রিম (Staff & Payroll)">
+            <span class="desktop-nav-icon">👔</span>
+            <span class="desktop-nav-label" data-en="Staff & Payroll" data-bn="স্টাফ হাজিরা ও বেতন">স্টাফ হাজিরা ও বেতন</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="security" onclick="App.navigate('security')" title="সিকিউরিটি ও স্টাফ পারমিশন (Security & Permissions)">
+            <span class="desktop-nav-icon">🔐</span>
+            <span class="desktop-nav-label" data-en="Security & Permissions" data-bn="সিকিউরিটি ও পারমিশন">সিকিউরিটি ও পারমিশন</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="backup" onclick="App.navigate('backup')" title="ব্যাকআপ ও ক্লাউড সিঙ্ক (Backup & Sync)">
+            <span class="desktop-nav-icon">☁️</span>
+            <span class="desktop-nav-label" data-en="Backup & Data Hub" data-bn="ব্যাকআপ ও ডাটা হাব">ব্যাকআপ ও ডাটা হাব</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="recycle_bin" onclick="App.navigate('recycle_bin')" title="স্মার্ট রিসাইকেল বিন (Recycle Bin)">
+            <span class="desktop-nav-icon">🗑️</span>
+            <span class="desktop-nav-label" data-en="Recycle Bin" data-bn="রিসাইকেল বিন">রিসাইকেল বিন</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="audit" onclick="App.navigate('audit')" title="সিস্টেম অডিট ও হেলথ চেক (System Audit)">
+            <span class="desktop-nav-icon">🛡️</span>
+            <span class="desktop-nav-label" data-en="System Audit" data-bn="সিস্টেম অডিট">সিস্টেম অডিট</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="settings" onclick="App.navigate('settings')" title="দোকানের মূল সেটিংস (Settings)">
+            <span class="desktop-nav-icon">⚙️</span>
+            <span class="desktop-nav-label" data-en="Settings" data-bn="মূল সেটিংস">মূল সেটিংস</span>
+          </button>
+          <button type="button" class="desktop-nav-item" data-view="help" onclick="App.navigate('help')" title="ইউজার ম্যানুয়াল ও গাইড (User Manual)">
+            <span class="desktop-nav-icon">📘</span>
+            <span class="desktop-nav-label" data-en="User Manual & Help" data-bn="ইউজার ম্যানুয়াল ও গাইড">ইউজার ম্যানুয়াল ও গাইড</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="desktop-sidebar-footer">
+      <button type="button" class="desktop-sidebar-all-btn" onclick="App.openLeftDrawer()" title="সকল ফিচার ও মডিউল দেখুন (All Modules)">
+        <span>🧭</span>
+        <span class="desktop-sidebar-all-label" data-en="All Modules Directory" data-bn="সকল মডিউল ডিরেক্টরি">সকল মডিউল ডিরেক্টরি</span>
+      </button>
+    </div>
+  </aside>
+
 
   <!-- Top App Header -->
   <header class="app-header" style="position:relative;">
-    <div class="header-brand-wrap" style="display:flex; align-items:center; gap:10px; min-width:0;">
+    <div class="header-brand-wrap" style="display:flex; align-items:center; gap:10px; min-width:0; flex:1;">
       <button class="icon-btn header-hamburger-btn" onclick="event.stopPropagation(); App.openLeftDrawer()" title="Open Navigation Menu" aria-label="Open Navigation Menu" style="font-size: 20px; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: var(--bg-surface-alt); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; flex-shrink: 0;">☰</button>
       <div class="header-brand" onclick="App.navigate('dashboard')" title="Shop Management Pro Dashboard" style="cursor:pointer; user-select:none; display:flex; align-items:center; min-width:0;">
         <div class="smp-header-brand">
@@ -3918,6 +4847,28 @@ body {
             <span style="font-family:'Inter', system-ui, -apple-system, sans-serif; font-size:10px; font-weight:700; color:var(--primary); letter-spacing:0.6px; text-transform:uppercase; margin-top:1px; white-space:nowrap; line-height:1;">Retail POS &amp; Inventory System</span>
           </div>
         </div>
+      </div>
+
+      <!-- Desktop Contextual Breadcrumb & Quick Command Bar (>=1024px) -->
+      <div id="desktopHeaderContextBar" class="desktop-header-context-bar">
+        <div class="desktop-breadcrumb-pill" title="Current Workspace Module">
+          <span class="desktop-breadcrumb-cat" id="desktopBreadcrumbCat" data-en="Sales & Operations" data-bn="বিক্রয় ও মূল কার্যক্রম">বিক্রয় ও মূল কার্যক্রম</span>
+          <span class="desktop-breadcrumb-sep">/</span>
+          <span class="desktop-breadcrumb-page" id="desktopBreadcrumbPage" data-en="Dashboard" data-bn="ড্যাশবোর্ড">ড্যাশবোর্ড</span>
+        </div>
+
+        <button type="button" class="desktop-header-quick-search" onclick="App.openGlobalSearchModal()" title="Global Search (Ctrl+K)">
+          <span style="display:inline-flex; align-items:center; gap:7px;">
+            <span>🔍</span>
+            <span data-en="Search invoices, products, parties..." data-bn="পণ্য, চালান বা কাস্টমার খুঁজুন...">পণ্য, চালান বা কাস্টমার খুঁজুন...</span>
+          </span>
+          <span class="desktop-header-kbd">Ctrl+K</span>
+        </button>
+
+        <button type="button" class="desktop-header-pos-btn" onclick="App.navigate('sales')" title="Open POS Billing Terminal (F2)">
+          <span>🛒</span>
+          <span data-en="+ New Sale (POS)" data-bn="+ নতুন বিক্রয় (POS)">+ নতুন বিক্রয় (POS)</span>
+        </button>
       </div>
     </div>
 
@@ -8093,6 +9044,11 @@ body {
     }
 
     container.innerHTML = html;
+    if (window.App && typeof window.App.enhanceDesktopViewUI === "function") {
+      try {
+        window.App.enhanceDesktopViewUI(container);
+      } catch (e) {}
+    }
 
     if (activeId || activeName || activePlaceholder) {
       const restoreFocus = () => {
@@ -8916,32 +9872,72 @@ body {
         </div>
       ` : ''}
 
-      <!-- Top Dashboard Header & Live Time Strip -->
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <h1 style="font-size:17.5px; font-weight:800; margin:0; display:flex; align-items:center; gap:6px;">
+      <!-- Top Dashboard Header & Unified Desktop Executive Command Bar -->
+      <div class="desktop-unified-toolbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:12px; padding:12px 14px; box-shadow:var(--shadow-xs);">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; min-width:0; flex:1 1 auto;">
+          <h1 style="font-size:17px; font-weight:800; margin:0; display:flex; align-items:center; gap:7px; white-space:nowrap;">
             <span>🏪</span>
             <span>${_txt("Retail Counter Dashboard", "রিটেল ক্যাশ কাউন্টার ড্যাশবোর্ড")}</span>
           </h1>
-          <div class="dashboard-clock-card notranslate" style="display:inline-flex; align-items:center; gap:8px; padding:5px 12px; border-radius:10px; background:var(--bg-surface-alt); border:1px solid var(--border-color); box-shadow:0 4px 10px rgba(0,0,0,0.03); font-size:11.5px; font-weight:700; color:var(--text-main);">
+          <div class="dashboard-clock-card notranslate" style="display:inline-flex; align-items:center; gap:8px; padding:5px 10px; border-radius:8px; background:var(--bg-surface-alt); border:1px solid var(--border-color); font-size:11.5px; font-weight:700; color:var(--text-main);">
             <span style="display:flex; align-items:center; gap:4px; color:var(--primary);"><span style="font-size:13px;">📅</span> <span id="dashLiveDate">${formatDate(new Date())}</span></span>
             <span style="color:var(--border-color); font-weight:300; margin:0 2px;">|</span>
             <span style="display:flex; align-items:center; gap:4px; color:var(--success);"><span style="font-size:13px; animation: 1.5s infinite liveDotPulse;">🕒</span> <span id="dashLiveTime" style="font-family:monospace; letter-spacing:0.5px;">${formatTime(new Date())}</span></span>
           </div>
-          <span style="font-size:11.5px; color:var(--text-muted); font-weight:600;">• ${_txt("Live Store Snapshot", "দোকানের লাইভ হিসাব")}</span>
         </div>
-        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-          <button class="btn btn-xs btn-outline" onclick="App.navigate('cash_closing')" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; padding:5px 12px; border-radius:8px;">
-            <span>💵</span> <span>${t("cash_closing")}</span>
+
+        <!-- Unified Primary Actions (Desktop-only) + Cash Closing & More Actions Dropdown -->
+        <div class="dash-top-action-group" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; width:auto;">
+          <button type="button" class="btn btn-sm btn-primary desktop-only-flex" onclick="App.navigate('sales')" style="align-items:center; gap:6px; font-weight:700; height:36px; padding:0 14px; border-radius:8px;">
+            <span>🛒</span> <span>${_txt("New Sale (POS)", "নতুন বিক্রয় (POS)")}</span>
           </button>
-          <button class="btn btn-xs btn-outline" onclick="App.navigate('reports')" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; padding:5px 12px; border-radius:8px;">
-            <span>📊</span> <span>${_txt("Reports", "রিপোর্ট")}</span>
+          <button type="button" class="btn btn-sm btn-outline desktop-only-flex" onclick="App.openCollectCustomerDueModal()" style="align-items:center; gap:6px; font-weight:700; height:36px; padding:0 12px; border-radius:8px;">
+            <span>💵</span> <span>${_txt("Collect Due", "বাকি আদায়")}</span>
           </button>
+          <button type="button" class="btn btn-sm btn-outline desktop-only-flex" onclick="App.openAddProductModal()" style="align-items:center; gap:6px; font-weight:700; height:36px; padding:0 12px; border-radius:8px;">
+            <span>📦</span> <span>${t("add_product")}</span>
+          </button>
+
+          <button type="button" class="btn btn-xs btn-outline" onclick="App.navigate('cash_closing')" style="display:inline-flex; align-items:center; justify-content:center; gap:5px; font-weight:700; height:36px; padding:0 12px; border-radius:8px;">
+            <span>🏦</span> <span>${t("cash_closing")}</span>
+          </button>
+
+          <!-- Clean Dropdown for Secondary Quick Actions -->
+          <div class="desktop-more-dropdown-wrap">
+            <button type="button" class="desktop-more-dropdown-btn" onclick="App.toggleDesktopActionDropdown(this, event)">
+              <span>⚡</span>
+              <span>${_txt("More Actions", "আরও অপশন")}</span>
+              <span style="font-size:10px; opacity:0.8;">▾</span>
+            </button>
+            <div class="desktop-more-dropdown-menu" onclick="event.stopPropagation()">
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openNewPurchaseModal()">
+                <span>📥</span> <span>${t("new_purchase")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openAddExpenseModal()">
+                <span>💸</span> <span>${t("add_expense")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openAddIncomeModal()">
+                <span>💰</span> <span>${t("add_income")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('invoices')">
+                <span>🧾</span> <span>${_txt("Invoices & Bills", "সকল চালান ও রসিদ")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('reports')">
+                <span>📊</span> <span>${_txt("Reports & Analytics", "রিপোর্ট ও বিশ্লেষণ")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openBarcodeModal()">
+                <span>📷</span> <span>${_txt("Camera Barcode Scanner", "বারকোড স্ক্যানার")}</span>
+              </button>
+              <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openEncryptedBackupModal()">
+                <span>🔒</span> <span>${_txt("Encrypted Backup (.ENC)", "এনক্রিপ্ট ব্যাকআপ")}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Modern Mobile-First Quick Actions Grid -->
-      <div class="mobile-quick-action-grid">
+      <!-- Modern Mobile-First Quick Actions Grid (Hidden on >=1024px Desktop where top command bar is used) -->
+      <div class="mobile-quick-action-grid desktop-hide-scattered-actions">
         <div class="mqa-btn mqa-sale" onclick="App.navigate('sales')">
           <div class="mqa-icon">🛒</div>
           <div class="mqa-text">
@@ -9051,8 +10047,8 @@ body {
         </div>
       </div>
 
-      <!-- 2. Counter Action Bar (Compact) -->
-      <div class="retail-actions-bar" style="margin-bottom:12px;">
+      <!-- 2. Counter Action Bar (Compact on Mobile/Tablet, hidden on Desktop where top command bar is used) -->
+      <div class="retail-actions-bar desktop-hide-scattered-actions" style="margin-bottom:12px;">
         <button class="retail-action-btn" onclick="App.openNewPurchaseModal()" title="${t("new_purchase")}">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m7.5 4.27 9 5.15M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 21 16Z"/></svg>
           <span>${t("new_purchase")}</span>
@@ -10375,16 +11371,37 @@ body {
             <span class="stat-badge bg-primary-lt c-primary" id="productsCountBadge" style="font-size: 12px; font-weight: 700;">(${filtered.length})</span>
           </h2>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <button type="button" class="btn btn-outline" onclick="App.navigate('stock_history')">
-              <span>📜 ${t("stock_history")}</span>
-            </button>
-            <button type="button" class="btn btn-outline" onclick="App.navigate('inventory_valuation')">
-              <span>📊 ${t("inv_valuation")}</span>
-            </button>
-            <button type="button" class="btn btn-primary" onclick="App.openAddProductModal()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <button type="button" class="btn btn-primary" onclick="App.openAddProductModal()" style="height:36px; display:inline-flex; align-items:center; gap:6px; font-weight:700;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>${t("add_product")}</span>
             </button>
+            <div class="desktop-more-dropdown-wrap">
+              <button type="button" class="desktop-more-dropdown-btn" onclick="App.toggleDesktopActionDropdown(this, event)">
+                <span>⚙️</span>
+                <span>${_txt("More Options", "আরও অপশন")}</span>
+                <span style="font-size:10px; opacity:0.8;">▾</span>
+              </button>
+              <div class="desktop-more-dropdown-menu" onclick="event.stopPropagation()">
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('stock_history')">
+                  <span>📜</span> <span>${t("stock_history")}</span>
+                </button>
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('inventory_valuation')">
+                  <span>📊</span> <span>${t("inv_valuation")}</span>
+                </button>
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('barcode')">
+                  <span>🏷️</span> <span>${_txt("Barcode Label Print", "বারকোড ও লেবেল প্রিন্ট")}</span>
+                </button>
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.openNewPurchaseModal()">
+                  <span>📥</span> <span>${t("new_purchase")}</span>
+                </button>
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('expiry')">
+                  <span>⏳</span> <span>${_txt("Expiry Alerts", "মেয়াদ উত্তীর্ণ অ্যালার্ট")}</span>
+                </button>
+                <button type="button" class="btn" onclick="App.closeAllDesktopDropdowns(); App.navigate('damage_register')">
+                  <span>⚠️</span> <span>${_txt("Damage & Write-Off", "ড্যামেজ ও নষ্ট পণ্য")}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -10408,30 +11425,41 @@ body {
           </div>
         </div>
 
-        <!-- Search & Scan Row -->
-        <div style="display:flex; gap:8px; margin-bottom:10px;">
-          <div style="position:relative; flex:1;">
-            <input
-              type="text"
-              id="productSearchInput"
-              class="form-control"
-              style="padding-left:36px; padding-right:36px; font-weight:600;"
-              placeholder="${_txt("Search product name, SKU, category or barcode...", "পণ্যের নাম, SKU, ক্যাটাগরি বা বারকোড খুঁজুন...")}"
-              value="${window.App.productSearchQuery || ''}"
-              oninput="App.handleProductSearch(this.value)"
-              autocomplete="off"
-            />
-            <span style="position:absolute; left:12px; top:11px; opacity:0.6;">🔍</span>
-            <button type="button" id="productSearchClearBtn" class="icon-btn" style="position:absolute; right:4px; top:4px; width:32px; height:32px; border:none; display:${window.App.productSearchQuery ? 'flex' : 'none'};" onclick="App.clearProductSearch()">✕</button>
+        <!-- Unified Search, Scanner & Stock Status Filter Row on Desktop -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+          <div style="display:flex; gap:8px; flex:1 1 320px; min-width:260px;">
+            <div style="position:relative; flex:1;">
+              <input
+                type="text"
+                id="productSearchInput"
+                class="form-control"
+                style="padding-left:36px; padding-right:36px; font-weight:600; height:38px;"
+                placeholder="${_txt("Search product name, SKU, category or barcode...", "পণ্যের নাম, SKU, ক্যাটাগরি বা বারকোড খুঁজুন...")}"
+                value="${window.App.productSearchQuery || ''}"
+                oninput="App.handleProductSearch(this.value)"
+                autocomplete="off"
+              />
+              <span style="position:absolute; left:12px; top:9px; opacity:0.6;">🔍</span>
+              <button type="button" id="productSearchClearBtn" class="icon-btn" style="position:absolute; right:4px; top:3px; width:30px; height:30px; border:none; display:${window.App.productSearchQuery ? 'flex' : 'none'};" onclick="App.clearProductSearch()">✕</button>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:0 12px; height:38px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;" title="${_txt("Barcode Scanner", "ক্যামেরা স্ক্যানার")}" onclick="App.openCameraScannerModal()">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span class="header-desktop-only">${_txt("Scanner", "স্ক্যানার")}</span>
+            </button>
           </div>
-          <button type="button" class="btn btn-primary" style="padding:0 12px; height:42px; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;" title="${_txt("Barcode Scanner", "ক্যামেরা স্ক্যানার")}" onclick="App.openCameraScannerModal()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <span class="header-desktop-only">${_txt("Scanner", "স্ক্যানার")}</span>
-          </button>
+
+          <!-- Stock Status Filter Chips -->
+          <div class="stock-pills-grid" style="margin-bottom:0; flex:0 1 auto;">
+            <button type="button" class="pill ${!window.App.productStockFilter || window.App.productStockFilter === 'all' ? 'active' : ''}" onclick="App.setProductStockFilter('all')">${_txt("All Stock", "সব মজুদ")} (${products.length})</button>
+            <button type="button" class="pill ${window.App.productStockFilter === 'low' ? 'active' : ''}" onclick="App.setProductStockFilter('low')">⚠️ ${_txt("Low Stock", "কম স্টক")} (${lowCount})</button>
+            <button type="button" class="pill ${window.App.productStockFilter === 'out' ? 'active' : ''}" onclick="App.setProductStockFilter('out')">❌ ${_txt("Out of Stock", "স্টক শেষ")} (${outCount})</button>
+            ${overCount > 0 ? `<button type="button" class="pill ${window.App.productStockFilter === 'overstock' ? 'active' : ''}" onclick="App.setProductStockFilter('overstock')">📦 ${_txt("Overstock", "ওভারস্টক")} (${overCount})</button>` : ""}
+            ${expCount > 0 ? `<button type="button" class="pill ${window.App.productStockFilter === 'expired' ? 'active' : ''}" onclick="App.setProductStockFilter('expired')">⛔ ${_txt("Expired", "মেয়াদোত্তীর্ণ")} (${expCount})</button>` : ""}
+          </div>
         </div>
 
         <!-- Category Filter Pills Bar -->
-        <div class="filter-bar-wrapper" style="margin-bottom: 8px;">
+        <div class="filter-bar-wrapper" style="margin-bottom: 10px;">
           <button type="button" class="filter-scroll-btn" title="Scroll left" onclick="App.scrollProductCategories(-160)" aria-label="Previous categories">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
@@ -10460,15 +11488,6 @@ body {
           <button type="button" class="filter-scroll-btn" title="Scroll right" onclick="App.scrollProductCategories(160)" aria-label="Next categories">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
-        </div>
-
-        <!-- Stock Status Filter Chips -->
-        <div class="stock-pills-grid">
-          <button type="button" class="pill ${!window.App.productStockFilter || window.App.productStockFilter === 'all' ? 'active' : ''}" onclick="App.setProductStockFilter('all')">${_txt("All Stock", "সব মজুদ")} (${products.length})</button>
-          <button type="button" class="pill ${window.App.productStockFilter === 'low' ? 'active' : ''}" onclick="App.setProductStockFilter('low')">⚠️ ${_txt("Low Stock", "কম স্টক")} (${lowCount})</button>
-          <button type="button" class="pill ${window.App.productStockFilter === 'out' ? 'active' : ''}" onclick="App.setProductStockFilter('out')">❌ ${_txt("Out of Stock", "স্টক শেষ")} (${outCount})</button>
-          ${overCount > 0 ? `<button type="button" class="pill ${window.App.productStockFilter === 'overstock' ? 'active' : ''}" onclick="App.setProductStockFilter('overstock')">📦 ${_txt("Overstock", "ওভারস্টক")} (${overCount})</button>` : ""}
-          ${expCount > 0 ? `<button type="button" class="pill ${window.App.productStockFilter === 'expired' ? 'active' : ''}" onclick="App.setProductStockFilter('expired')">⛔ ${_txt("Expired", "মেয়াদোত্তীর্ণ")} (${expCount})</button>` : ""}
         </div>
 
         <!-- Product Table / Mobile Cards -->
@@ -28239,13 +29258,26 @@ async function renderReports(container) {
       const headerTitle = document.getElementById("headerShopName");
       const headerSub = document.getElementById("headerSubtitle");
       const headerLogo = document.getElementById("headerLogo");
-      if (headerTitle) headerTitle.textContent = this.settings.shopName || "Shop Management Pro";
+      const shopNameStr = this.settings.shopName || "Shop Management Pro";
+      if (headerTitle) headerTitle.textContent = shopNameStr;
       if (headerSub) headerSub.textContent = this.settings.shopAddress || "";
       const logoUrl = this.settings.shopLogo || this.settings.shopLogoUrl || "";
       if (headerLogo && logoUrl) {
         headerLogo.innerHTML = '<img src="' + logoUrl + '" style="width:100%; height:100%; object-fit:contain; border-radius:8px;" />';
       } else if (headerLogo) {
-        headerLogo.textContent = (this.settings.shopName || "SMP").substring(0, 3).toUpperCase();
+        headerLogo.textContent = (shopNameStr || "SMP").substring(0, 3).toUpperCase();
+      }
+
+      // Sync Desktop Left Sidebar Brand Logo & Name
+      const dsShopName = document.getElementById("desktopSidebarShopName");
+      const dsLogo = document.getElementById("desktopSidebarLogo");
+      if (dsShopName) dsShopName.textContent = shopNameStr;
+      if (dsLogo) {
+        if (logoUrl) {
+          dsLogo.innerHTML = '<img src="' + logoUrl + '" style="width:100%; height:100%; object-fit:contain; border-radius:8px;" />';
+        } else {
+          dsLogo.textContent = (shopNameStr || "SMP").substring(0, 3).toUpperCase();
+        }
       }
 
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
@@ -28263,6 +29295,9 @@ async function renderReports(container) {
           if (headerUserIcon) headerUserIcon.textContent = "👤";
         }
       }
+      if (typeof this.initDesktopSidebar === "function") {
+        this.initDesktopSidebar();
+      }
       this.updatePopoverProfileUI();
       if (typeof this.updateNavLockIndicators === "function") {
         this.updateNavLockIndicators();
@@ -28271,7 +29306,7 @@ async function renderReports(container) {
 
     updateNavLockIndicators() {
       const isBn = ((window.App?.currentLang || this.currentLang || "en") === "bn");
-      const navSelectors = "#desktopAppNav .nav-item, .mobile-bottom-nav .mobile-nav-item";
+      const navSelectors = "#desktopAppNav .nav-item, .mobile-bottom-nav .mobile-nav-item, #desktopSidebar .desktop-nav-item";
       document.querySelectorAll(navSelectors).forEach(el => {
         const onclickAttr = el.getAttribute("onclick") || "";
         const m = onclickAttr.match(/App\.navigate\(['"]([^'"]+)['"]\)/);
@@ -28376,9 +29411,331 @@ async function renderReports(container) {
         });
       }
 
+      // Sync language on Desktop Sidebar & Desktop Header Context Bar
+      this.syncDesktopSidebarLanguage(isBn);
+
       if (typeof this.updateNavLockIndicators === "function") {
         this.updateNavLockIndicators();
       }
+    },
+
+    syncDesktopSidebarLanguage(isBnParam) {
+      const isBn = (typeof isBnParam === "boolean")
+        ? isBnParam
+        : ((window.App?.currentLang || this.currentLang || (typeof getAppLang === "function" ? getAppLang() : "en")) === "bn");
+      const sidebar = document.getElementById("desktopSidebar");
+      const contextBar = document.getElementById("desktopHeaderContextBar");
+      [sidebar, contextBar].forEach(root => {
+        if (!root) return;
+        root.querySelectorAll("[data-en][data-bn]").forEach(el => {
+          el.textContent = isBn ? el.getAttribute("data-bn") : el.getAttribute("data-en");
+        });
+        root.querySelectorAll("[data-placeholder-en][data-placeholder-bn]").forEach(inp => {
+          inp.setAttribute("placeholder", isBn ? inp.getAttribute("data-placeholder-bn") : inp.getAttribute("data-placeholder-en"));
+        });
+      });
+      if (this.currentView && typeof this.updateDesktopSidebarActive === "function") {
+        this.updateDesktopSidebarActive(this.currentView);
+      }
+    },
+
+    initDesktopSidebar() {
+      if (this._desktopSidebarInitialized) return;
+      this._desktopSidebarInitialized = true;
+      try {
+        const isCollapsed = localStorage.getItem("smp_desktop_sidebar_collapsed") === "1";
+        document.body.classList.toggle("desktop-sidebar-collapsed", isCollapsed);
+        const iconEl = document.getElementById("desktopSidebarToggleIcon");
+        if (iconEl) iconEl.textContent = isCollapsed ? "▶" : "◀";
+
+        const savedGroupsRaw = localStorage.getItem("smp_desktop_nav_groups");
+        if (savedGroupsRaw) {
+          const savedGroups = JSON.parse(savedGroupsRaw);
+          if (savedGroups && typeof savedGroups === "object") {
+            Object.keys(savedGroups).forEach(gid => {
+              const grpEl = document.querySelector(`.desktop-nav-group[data-group-id="${gid}"]`);
+              if (grpEl && savedGroups[gid] === true) {
+                grpEl.classList.add("collapsed");
+              }
+            });
+          }
+        }
+      } catch (e) {}
+
+      // Close open desktop dropdowns when clicking outside, scrolling, or resizing
+      document.addEventListener("click", (ev) => {
+        if (!ev.target || (!ev.target.closest(".desktop-more-dropdown-wrap") && !ev.target.closest(".desktop-more-dropdown-menu"))) {
+          this.closeAllDesktopDropdowns();
+        }
+      });
+      window.addEventListener("scroll", (ev) => {
+        if (ev.target && ev.target.classList && ev.target.classList.contains("desktop-more-dropdown-menu")) {
+          return;
+        }
+        this.closeAllDesktopDropdowns();
+      }, true);
+      window.addEventListener("resize", () => {
+        this.closeAllDesktopDropdowns();
+      });
+
+      // Keyboard shortcut Alt+S to toggle Desktop Sidebar
+      document.addEventListener("keydown", (ev) => {
+        if (ev.altKey && (ev.key === "s" || ev.key === "S")) {
+          ev.preventDefault();
+          this.toggleDesktopSidebar();
+        }
+      });
+
+      this.syncDesktopSidebarLanguage();
+    },
+
+    toggleDesktopSidebar() {
+      const isNowCollapsed = document.body.classList.toggle("desktop-sidebar-collapsed");
+      const iconEl = document.getElementById("desktopSidebarToggleIcon");
+      if (iconEl) iconEl.textContent = isNowCollapsed ? "▶" : "◀";
+      try {
+        localStorage.setItem("smp_desktop_sidebar_collapsed", isNowCollapsed ? "1" : "0");
+      } catch (e) {}
+    },
+
+    toggleDesktopSidebarGroup(groupId) {
+      const grpEl = document.querySelector(`.desktop-nav-group[data-group-id="${groupId}"]`);
+      if (!grpEl) return;
+      const isCollapsed = grpEl.classList.toggle("collapsed");
+      try {
+        const savedRaw = localStorage.getItem("smp_desktop_nav_groups");
+        const saved = savedRaw ? JSON.parse(savedRaw) : {};
+        saved[groupId] = isCollapsed;
+        localStorage.setItem("smp_desktop_nav_groups", JSON.stringify(saved));
+      } catch (e) {}
+    },
+
+    filterDesktopSidebar(query) {
+      const q = (query || "").toLowerCase().trim();
+      const groups = document.querySelectorAll("#desktopSidebarNavScroll .desktop-nav-group");
+      groups.forEach(grp => {
+        const items = grp.querySelectorAll(".desktop-nav-item");
+        let visibleCount = 0;
+        items.forEach(item => {
+          if (!q) {
+            item.style.display = "";
+            visibleCount++;
+            return;
+          }
+          const lbl = item.querySelector(".desktop-nav-label");
+          const enTxt = (lbl && lbl.getAttribute("data-en") || "").toLowerCase();
+          const bnTxt = (lbl && lbl.getAttribute("data-bn") || "").toLowerCase();
+          const vKey = (item.getAttribute("data-view") || "").toLowerCase();
+          const titleTxt = (item.getAttribute("title") || "").toLowerCase();
+          const match = enTxt.includes(q) || bnTxt.includes(q) || vKey.includes(q) || titleTxt.includes(q);
+          item.style.display = match ? "" : "none";
+          if (match) visibleCount++;
+        });
+        if (q) {
+          grp.style.display = visibleCount > 0 ? "" : "none";
+          if (visibleCount > 0) grp.classList.remove("collapsed");
+        } else {
+          grp.style.display = "";
+        }
+      });
+    },
+
+    updateDesktopSidebarActive(view) {
+      const aliasMap = {
+        pos: "sales",
+        cash_book: "cash_ledger",
+        banking: "bank_ledger",
+        warranty_lookup: "warranty_center",
+        damage_writeoff: "damage_register",
+        loyalty_credit: "loyalty_center",
+        staff: "staff_payroll",
+        recurring_transactions: "recurring",
+        backup_restore: "backup",
+        data_hub: "backup",
+        recyclebin: "recycle_bin",
+        units: "categories",
+        user_manual: "help",
+        compliance: "audit"
+      };
+      const targetView = aliasMap[view] || view || "dashboard";
+      const sidebar = document.getElementById("desktopSidebar");
+      if (!sidebar) return;
+
+      const isBn = ((window.App?.currentLang || this.currentLang || (typeof getAppLang === "function" ? getAppLang() : "en")) === "bn");
+      let activeItem = null;
+      sidebar.querySelectorAll(".desktop-nav-item").forEach(item => {
+        const itemView = item.getAttribute("data-view");
+        if (itemView === targetView) {
+          item.classList.add("active");
+          activeItem = item;
+        } else {
+          item.classList.remove("active");
+        }
+      });
+
+      if (activeItem) {
+        const parentGroup = activeItem.closest(".desktop-nav-group");
+        if (parentGroup) {
+          parentGroup.classList.remove("collapsed");
+          const hdrSpan = parentGroup.querySelector(".desktop-nav-group-header span[data-en]");
+          const catEl = document.getElementById("desktopBreadcrumbCat");
+          if (hdrSpan && catEl) {
+            const enCat = hdrSpan.getAttribute("data-en") || "";
+            const bnCat = hdrSpan.getAttribute("data-bn") || "";
+            catEl.setAttribute("data-en", enCat);
+            catEl.setAttribute("data-bn", bnCat);
+            catEl.textContent = isBn ? bnCat : enCat;
+          }
+        }
+        const lblEl = activeItem.querySelector(".desktop-nav-label");
+        const pageEl = document.getElementById("desktopBreadcrumbPage");
+        if (lblEl && pageEl) {
+          const enPage = lblEl.getAttribute("data-en") || lblEl.textContent;
+          const bnPage = lblEl.getAttribute("data-bn") || lblEl.textContent;
+          pageEl.setAttribute("data-en", enPage);
+          pageEl.setAttribute("data-bn", bnPage);
+          pageEl.textContent = isBn ? bnPage : enPage;
+        }
+      }
+    },
+
+    toggleDesktopActionDropdown(btnEl, event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (!btnEl) return;
+      const wrap = btnEl.closest(".desktop-more-dropdown-wrap");
+      if (!wrap) return;
+      const wasOpen = wrap.classList.contains("open");
+      this.closeAllDesktopDropdowns();
+      if (!wasOpen) {
+        wrap.classList.add("open");
+        const menu = wrap.querySelector(".desktop-more-dropdown-menu") || wrap._portaledMenu;
+        if (menu) {
+          menu._originalParent = wrap;
+          wrap._portaledMenu = menu;
+          document.body.appendChild(menu);
+          menu.classList.add("portal-open");
+
+          const vw = window.innerWidth || document.documentElement.clientWidth || 360;
+          const vh = window.innerHeight || document.documentElement.clientHeight || 640;
+          const btnRect = btnEl.getBoundingClientRect();
+          const menuRect = menu.getBoundingClientRect();
+          const mWidth = Math.max(menuRect.width || 225, 225);
+          const mHeight = Math.min(menuRect.height || 260, vh - 96);
+
+          // Smart horizontal clamping so menu never overflows left or right edge
+          let targetLeft;
+          if (btnRect.left < vw * 0.45) {
+            targetLeft = btnRect.left;
+          } else {
+            targetLeft = btnRect.right - mWidth;
+          }
+          targetLeft = Math.max(12, Math.min(targetLeft, vw - mWidth - 12));
+
+          // Smart vertical clamping so menu stays above bottom nav / viewport edge
+          let targetTop = btnRect.bottom + 6;
+          const bottomReserved = vw < 768 ? 72 : 16;
+          if (targetTop + mHeight > vh - bottomReserved && btnRect.top - mHeight - 6 > 12) {
+            targetTop = btnRect.top - mHeight - 6;
+          } else {
+            targetTop = Math.max(12, Math.min(targetTop, vh - mHeight - bottomReserved));
+          }
+
+          menu.style.left = Math.round(targetLeft) + "px";
+          menu.style.top = Math.round(targetTop) + "px";
+          menu.style.right = "auto";
+        }
+      }
+    },
+
+    closeAllDesktopDropdowns() {
+      document.querySelectorAll("body > .desktop-more-dropdown-menu.portal-open").forEach(menu => {
+        menu.classList.remove("portal-open");
+        if (menu._originalParent && document.body.contains(menu._originalParent)) {
+          menu._originalParent.appendChild(menu);
+        } else {
+          menu.remove();
+        }
+      });
+      document.querySelectorAll(".desktop-more-dropdown-wrap.open").forEach(el => {
+        el.classList.remove("open");
+      });
+    },
+
+    enhanceDesktopViewUI(container) {
+      if (!container) return;
+      // Only auto-group .card-header buttons on Desktop (>=1024px) so mobile 2-column button grids stay intact
+      if ((window.innerWidth || document.documentElement.clientWidth || 1024) < 1024) return;
+      const isBn = ((window.App?.currentLang || this.currentLang || (typeof getAppLang === "function" ? getAppLang() : "en")) === "bn");
+      const headers = container.querySelectorAll(".card-header");
+      headers.forEach(hdr => {
+        if (hdr.getAttribute("data-desktop-enhanced") === "1") return;
+        if (hdr.querySelector(".desktop-more-dropdown-wrap")) {
+          hdr.setAttribute("data-desktop-enhanced", "1");
+          return;
+        }
+        // Locate action button group inside .card-header
+        let btnGroup = hdr.querySelector(".action-btn-grid");
+        if (!btnGroup) {
+          const childDivs = Array.from(hdr.children).filter(el => el.tagName === "DIV");
+          if (childDivs.length > 0) {
+            const candidate = childDivs[childDivs.length - 1];
+            if (candidate.querySelectorAll("button, .btn").length >= 3) {
+              btnGroup = candidate;
+            }
+          }
+        }
+        if (!btnGroup) return;
+
+        const directBtns = Array.from(btnGroup.children).filter(el =>
+          (el.tagName === "BUTTON" || el.classList.contains("btn")) &&
+          el.style.display !== "none"
+        );
+        if (directBtns.length < 3) return;
+
+        hdr.setAttribute("data-desktop-enhanced", "1");
+
+        // Keep up to 2 primary/main buttons visible inline, move remaining buttons into "More Options ▾" dropdown
+        const primaryBtns = directBtns.filter(b => b.classList.contains("btn-primary") || b.classList.contains("btn-success"));
+        const keepInline = new Set();
+        if (primaryBtns.length > 0) {
+          primaryBtns.slice(0, 2).forEach(b => keepInline.add(b));
+          if (keepInline.size === 1) {
+            const firstOther = directBtns.find(b => !keepInline.has(b));
+            if (firstOther) keepInline.add(firstOther);
+          }
+        } else {
+          directBtns.slice(0, 2).forEach(b => keepInline.add(b));
+        }
+
+        const overflowBtns = directBtns.filter(b => !keepInline.has(b));
+        if (overflowBtns.length < 2) return;
+
+        const dropdownWrap = document.createElement("div");
+        dropdownWrap.className = "desktop-more-dropdown-wrap";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "desktop-more-dropdown-btn";
+        toggleBtn.setAttribute("onclick", "App.toggleDesktopActionDropdown(this, event)");
+        toggleBtn.innerHTML = `<span>⚙️</span><span>${isBn ? "আরও অপশন" : "More Options"}</span><span style="font-size:10px; opacity:0.8;">▾</span>`;
+
+        const menuDiv = document.createElement("div");
+        menuDiv.className = "desktop-more-dropdown-menu";
+        menuDiv.addEventListener("click", () => {
+          setTimeout(() => this.closeAllDesktopDropdowns(), 60);
+        });
+
+        overflowBtns.forEach(btn => {
+          menuDiv.appendChild(btn);
+        });
+
+        dropdownWrap.appendChild(toggleBtn);
+        dropdownWrap.appendChild(menuDiv);
+        btnGroup.appendChild(dropdownWrap);
+      });
     },
 
     resetInactivityTimer() {
@@ -28432,6 +29789,9 @@ async function renderReports(container) {
       if (langDisplay) langDisplay.textContent = targetLang === "bn" ? "BN" : "EN";
       if (typeof updateLanguageUI === "function") {
         updateLanguageUI();
+      }
+      if (typeof this.syncDesktopSidebarLanguage === "function") {
+        this.syncDesktopSidebarLanguage(targetLang === "bn");
       }
       if (this.currentView) {
         this.navigate(this.currentView, false, true);
@@ -28889,6 +30249,14 @@ async function renderReports(container) {
           break;
         default:
           await renderDashboard(container);
+      }
+      if (typeof this.updateDesktopSidebarActive === "function") {
+        this.updateDesktopSidebarActive(view);
+      }
+      if (typeof this.enhanceDesktopViewUI === "function") {
+        try {
+          this.enhanceDesktopViewUI(container);
+        } catch (e) {}
       }
       if (typeof this.updatePopoverProfileUI === "function") {
         this.updatePopoverProfileUI();
