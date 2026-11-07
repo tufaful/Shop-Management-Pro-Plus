@@ -3013,7 +3013,7 @@ body {
     transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+    transition: transform 0.14s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.14s ease, border-color 0.14s ease;
   }
   .product-grid {
     content-visibility: auto;
@@ -3021,6 +3021,231 @@ body {
   }
   .btn, .nav-btn, .category-chip {
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ==========================================================================
+     PREMIUM ENTERPRISE DESIGN & ORGANIZATIONAL POLISH
+     ========================================================================== */
+  
+  /* 1. Global Typography & Tabular Numerals Alignment */
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  .tabular-nums, .stat-val, .retail-kpi-val, .pos-item-price, .pos-item-stock,
+  .cart-item-price, .cart-item-total, .pos-card-qty-val, table td:not(:first-child),
+  .kpi-trend-badge, #dashLiveTime, .badge, .counter-badge {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* 2. Elevated Card Surfaces & Visual Hierarchy */
+  .card {
+    border-radius: 14px !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+    transition: box-shadow 0.16s ease, border-color 0.16s ease !important;
+  }
+  .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  }
+  .card-header {
+    margin-bottom: 14px !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid var(--border-color) !important;
+  }
+  .card-title {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.2px !important;
+  }
+
+  /* 3. Sleek Dashboard KPI Cards Polish */
+  .retail-hero-strip {
+    gap: 12px !important;
+  }
+  .retail-kpi-card {
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+  .retail-kpi-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+  }
+  .retail-kpi-card.hero-sales::before { background: #10b981; }
+  .retail-kpi-card.hero-profit::before { background: #059669; }
+  .retail-kpi-card.hero-cash::before { background: #2563eb; }
+  .retail-kpi-card.hero-cust-due::before { background: #f59e0b; }
+  .retail-kpi-card.hero-supp-due::before { background: #ef4444; }
+  .retail-kpi-card.hero-stock::before { background: #8b5cf6; }
+  .retail-kpi-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03) !important;
+    border-color: var(--primary) !important;
+  }
+
+  /* 4. Sleek Quick Action Buttons */
+  .mqa-btn {
+    border-radius: 14px !important;
+    padding: 12px 14px !important;
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+    transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .mqa-btn:hover {
+    border-color: var(--primary) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08) !important;
+  }
+  .mqa-icon {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+  }
+
+  /* 5. Beautiful POS Terminal Items & Cart */
+  .pos-item-card {
+    border-radius: 14px !important;
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-surface) !important;
+    padding: 12px 10px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  }
+  .pos-item-card:hover {
+    border-color: var(--primary) !important;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.09) !important;
+    transform: translateY(-2px) !important;
+  }
+  .pos-item-img {
+    border-radius: 10px !important;
+    background: var(--bg-surface-alt) !important;
+  }
+  .pos-card-add-btn {
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.1px !important;
+  }
+  .pos-card-qty-control {
+    border-radius: 8px !important;
+  }
+  .pos-card-cart-badge {
+    border-radius: 20px !important;
+    padding: 3px 8px !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3) !important;
+  }
+
+  /* 6. Clean High-Density Table Layouts */
+  .table-container {
+    border-radius: 12px !important;
+    border: 1px solid var(--border-color) !important;
+    background: var(--bg-surface) !important;
+  }
+  .table-container table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-surface-alt);
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.35px !important;
+    text-transform: uppercase !important;
+    padding: 11px 14px !important;
+  }
+  .table-container table td {
+    padding: 11px 14px !important;
+    vertical-align: middle !important;
+  }
+  .table-container table tr:hover td {
+    background: rgba(37, 99, 235, 0.035) !important;
+  }
+
+  /* 7. Refined Buttons & Form Inputs */
+  .btn {
+    border-radius: 9px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.1px !important;
+    transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn-primary {
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25) !important;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+  }
+  .form-control {
+    border-radius: 9px !important;
+    border: 1px solid var(--border-color) !important;
+    font-size: 13px !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
+  }
+  .form-control:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  }
+
+  /* 8. Modern Modals & Dialogs */
+  .modal-overlay {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+  }
+  .modal-card {
+    border-radius: 18px !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  }
+  .modal-header {
+    border-radius: 18px 18px 0 0 !important;
+    padding: 16px 20px !important;
+  }
+  .modal-footer {
+    border-radius: 0 0 18px 18px !important;
+    padding: 14px 20px !important;
+  }
+
+  /* 9. Header & Nav Polish */
+  .app-header {
+    padding: 8px 18px !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03) !important;
+  }
+  .header-logo {
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25) !important;
+  }
+  .nav-item {
+    border-radius: 8px 8px 0 0 !important;
+    font-weight: 700 !important;
+    font-size: 13px !important;
+  }
+  .nav-item.active {
+    font-weight: 800 !important;
+    border-bottom-width: 3px !important;
+  }
+
+  /* 10. Floating Cart Bar in POS Mobile */
+  .pos-floating-cart-bar {
+    border-radius: 16px !important;
+    box-shadow: 0 12px 30px rgba(5, 150, 105, 0.35) !important;
+    padding: 12px 18px !important;
   }
 
   #drawerBackdrop {
@@ -9068,12 +9293,14 @@ body {
       filtered = filtered.filter(p => p.category === window.App.activeFilter);
     }
     if (window.App.searchQuery) {
-      const q = window.App.searchQuery.toLowerCase();
-      filtered = filtered.filter(p =>
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.sku && p.sku.toLowerCase().includes(q)) ||
-        (p.barcode && p.barcode.toLowerCase().includes(q))
-      );
+      const q = window.App.searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(p => {
+        if (!p) return false;
+        if (p._posSearchTokens) return p._posSearchTokens.includes(q);
+        const tokens = `${p.name || ""} ${p.category || ""} ${p.sku || ""} ${p.barcode || ""} ${p.batchNo || ""}`.toLowerCase();
+        p._posSearchTokens = tokens;
+        return tokens.includes(q);
+      });
     }
 
     // Auto populate default tax rate if not manually set
