@@ -38931,7 +38931,7 @@ async function renderReports(container) {
             // Customer Due Payments collected (Vouchers) & Refunds
             // Note: Advance cash refunds give cash back to customer, increasing customer debt / reducing credit
             const netVoucherPayments = custPayments.reduce((sum, p) => {
-              if (p.isRefund === true || (parseFloat(p.amount) < 0 && !p.paidAmount)) {
+              if (p.isRefund === true || p.adjustmentType === "increase" || (parseFloat(p.amount) < 0 && !p.paidAmount)) {
                 return sum - Math.abs(parseFloat(p.amount) || 0);
               }
               const amt = parseFloat(p.amount ?? p.paidAmount ?? 0) || 0;
@@ -38976,7 +38976,7 @@ async function renderReports(container) {
             }, 0);
 
             const netSupplierVouchers = suppPays.reduce((sum, sp) => {
-              if (sp.isRefund === true || (parseFloat(sp.amount) < 0 && !sp.paidAmount)) {
+              if (sp.isRefund === true || sp.adjustmentType === "increase" || (parseFloat(sp.amount) < 0 && !sp.paidAmount)) {
                 return sum - Math.abs(parseFloat(sp.amount) || 0);
               }
               const amt = parseFloat(sp.amount ?? sp.paidAmount ?? 0) || 0;
@@ -49621,8 +49621,6 @@ async function renderReports(container) {
         createdAt: new Date().toISOString()
       };
 
-      await dbPut("salesReturns", returnDoc);
-
       // Restock products (including Combo Pack child items)
       for (const it of items) {
         const prod = await recordStockMovement(it.productId, "Sales Return", it.quantity, "Return #" + returnId, returnId);
@@ -49635,7 +49633,7 @@ async function renderReports(container) {
       }
 
       // Handle refund logic
-      if (refundMethod === "Due" && customer) {
+      if ((refundMethod === "Due" || refundMethod === "due_deduction") && customer) {
         const curDue = parseFloat(customer.dueBalance) || 0;
         customer.dueBalance = roundMoney(curDue - grandTotal);
         await dbPut("customers", customer);
@@ -49658,7 +49656,7 @@ async function renderReports(container) {
             account.currentBalance = roundMoney(prevBal - grandTotal);
             await dbPut("bankAccounts", account);
 
-            const bankTxId = "BT-" + Date.now();
+            const bankTxId = "BT-SR-" + Date.now();
             const bankTx = {
               id: bankTxId,
               accountId: account.id,
@@ -49678,6 +49676,8 @@ async function renderReports(container) {
           }
         }
       }
+
+      await dbPut("salesReturns", returnDoc);
 
       // Record reverse VAT adjustment in vat_ledger if original invoice had tax
       if (invNo) {
@@ -49746,7 +49746,7 @@ async function renderReports(container) {
             </div>
             <div style="text-align:right;">
               <div><strong>তারিখ:</strong> ${formatDate(sr.createdAt)}</div>
-              <div><strong>পদ্ধতি:</strong> ${sr.refundMethod === 'due_deduction' ? 'বকেয়া সমন্বয়' : 'নগদ ফেরত'}</div>
+              <div><strong>পদ্ধতি:</strong> ${(sr.refundMethod === 'due_deduction' || sr.refundMethod === 'Due') ? 'বকেয়া সমন্বয়' : (sr.refundMethod === 'Bank' || sr.refundMethod === 'MFS' ? sr.refundMethod + ' রিফান্ড' : 'নগদ ফেরত')}</div>
             </div>
           </div>
 
@@ -49817,8 +49817,10 @@ async function renderReports(container) {
               <div class="form-group">
                 <label class="form-label">ফেরত সমন্বয় মাধ্যম:</label>
                 <select id="editSrRefundMethod" class="form-control">
-                  <option value="cash_refund" ${sr.refundMethod === 'cash_refund' ? 'selected' : ''}>নগদ টাকা ফেরত প্রদান</option>
-                  <option value="due_deduction" ${sr.refundMethod === 'due_deduction' ? 'selected' : ''}>কাস্টমার বকেয়া থেকে কর্তন</option>
+                  <option value="Cash" ${(sr.refundMethod === 'Cash' || sr.refundMethod === 'cash_refund') ? 'selected' : ''}>নগদ টাকা ফেরত প্রদান (Cash)</option>
+                  <option value="Due" ${(sr.refundMethod === 'Due' || sr.refundMethod === 'due_deduction') ? 'selected' : ''}>কাস্টমার বকেয়া থেকে কর্তন (Due)</option>
+                  <option value="Bank" ${(sr.refundMethod === 'Bank' || sr.refundMethod === 'bank') ? 'selected' : ''}>ব্যাংক ট্রান্সফার (Bank)</option>
+                  <option value="MFS" ${sr.refundMethod === 'MFS' ? 'selected' : ''}>মোবাইল ব্যাংকিং (MFS)</option>
                 </select>
               </div>
             </div>
@@ -49962,7 +49964,7 @@ async function renderReports(container) {
 
       // 2. Revert previous customer due deduction or bank refund
       const oldSrTotal = parseFloat(sr.total) || 0;
-      if (sr.refundMethod === "due_deduction" && sr.customerId) {
+      if ((sr.refundMethod === "due_deduction" || sr.refundMethod === "Due") && sr.customerId) {
         const oldCust = await dbGet("customers", sr.customerId);
         if (oldCust) {
           oldCust.dueBalance = roundMoney((parseFloat(oldCust.dueBalance) || 0) + oldSrTotal);
@@ -49992,7 +49994,7 @@ async function renderReports(container) {
       const customer = custId ? await dbGet("customers", custId) : null;
       let linkedBankAccountId = sr.bankAccountId || null;
       let linkedBankTxId = null;
-      if (refundMethod === "due_deduction" && customer) {
+      if ((refundMethod === "due_deduction" || refundMethod === "Due") && customer) {
         const curDue = parseFloat(customer.dueBalance) || 0;
         customer.dueBalance = roundMoney(curDue - grandTotal);
         await dbPut("customers", customer);
@@ -50076,10 +50078,10 @@ async function renderReports(container) {
         }
 
         // Restore customer due
-        if (sr.refundMethod === "due_deduction" && sr.customerId) {
+        if ((sr.refundMethod === "due_deduction" || sr.refundMethod === "Due") && sr.customerId) {
           const cust = await dbGet("customers", sr.customerId);
           if (cust) {
-            cust.dueBalance = (parseFloat(cust.dueBalance) || 0) + (parseFloat(sr.total) || 0);
+            cust.dueBalance = roundMoney((parseFloat(cust.dueBalance) || 0) + (parseFloat(sr.total) || 0));
             await dbPut("customers", cust);
           }
         }
@@ -55313,13 +55315,13 @@ window.App.deletePurchase = async function(purchaseId) {
       const recycleBin = await dbGetAll("recycleBin");
       const settings = window.App?.settings || {};
 
-      const totalSalesAmt = sales.reduce((s, x) => s + (parseFloat(x.totalAmount || x.total) || 0), 0);
-      const totalPurchAmt = purchases.reduce((s, x) => s + (parseFloat(x.totalAmount || x.total) || 0), 0);
+      const totalSalesAmt = sales.reduce((s, x) => s + (parseFloat(x.grandTotal ?? x.totalAmount ?? x.total) || 0), 0);
+      const totalPurchAmt = purchases.reduce((s, x) => s + (parseFloat(x.grandTotal ?? x.totalAmount ?? x.total) || 0), 0);
       const totalExpAmt = expenses.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0);
       const totalIncAmt = income.reduce((s, x) => s + (parseFloat(x.amount) || 0), 0);
-      const totalCustDue = customers.reduce((s, c) => s + (parseFloat(c.dueAmount || c.balance || c.due) || 0), 0);
-      const totalSuppDue = suppliers.reduce((s, x) => s + (parseFloat(x.dueAmount || x.balance || x.due) || 0), 0);
-      const stockValuation = products.reduce((s, p) => s + ((parseFloat(p.stock) || 0) * (parseFloat(p.buyPrice || p.costPrice || p.price) || 0)), 0);
+      const totalCustDue = customers.reduce((s, c) => s + Math.max(0, parseFloat(c.dueBalance ?? c.dueAmount ?? c.balance ?? c.due) || 0), 0);
+      const totalSuppDue = suppliers.reduce((s, c) => s + Math.max(0, parseFloat(c.dueBalance ?? c.dueAmount ?? c.balance ?? c.due) || 0), 0);
+      const stockValuation = products.reduce((s, p) => s + (Math.max(0, parseFloat(p.currentStock ?? p.stock) || 0) * Math.max(0, parseFloat(p.purchasePrice ?? p.buyPrice ?? p.costPrice ?? p.price) || 0)), 0);
 
       const lockDate = settings.lockDate || settings.fiscalYearLockDate || null;
       const isPinSet = typeof isPinActive === "function" ? isPinActive() : false;
@@ -62824,20 +62826,22 @@ window.App.deletePurchase = async function(purchaseId) {
           const amt = num(record.amount || 0);
           if (amt === 0) return;
           const pDate = record.date || record.createdAt || new Date().toISOString();
+          const rawMethod = String(record.paymentMethod || record.method || "Cash").trim();
+          const isAdj = rawMethod.toLowerCase() === "adjustment";
           let bankAcc = null;
-          if (record.bankAccountId) bankAcc = await dbGet("bankAccounts", record.bankAccountId);
-          const liquidCode = resolveLiquidAccountCode(record.paymentMethod || record.method, bankAcc);
+          if (!isAdj && record.bankAccountId) bankAcc = await dbGet("bankAccounts", record.bankAccountId);
+          const liquidCode = isAdj ? "3030" : resolveLiquidAccountCode(rawMethod, bankAcc);
           const absAmt = Math.abs(amt);
-          const isReversal = amt < 0;
+          const isReversal = amt < 0 || record.isRefund === true || (isAdj && record.adjustmentType === "increase");
 
           await postJournalEntry({
             entryId: `JE-CPAY-${payId}`,
             transactionRef: payId,
             sourceModule: "CustomerPayment",
             postingDate: pDate,
-            description: isReversal ? `Customer payment reversal (${record.customerName || record.customerId || 'Customer'})` : `Customer payment received (${record.customerName || record.customerId || 'Customer'})`,
+            description: isAdj ? `Customer due adjustment (${record.customerName || record.customerId || 'Customer'})` : (isReversal ? `Customer payment reversal (${record.customerName || record.customerId || 'Customer'})` : `Customer payment received (${record.customerName || record.customerId || 'Customer'})`),
             lines: [
-              { accountCode: liquidCode, debit: isReversal ? 0 : absAmt, credit: isReversal ? absAmt : 0, memo: `Received via ${record.paymentMethod || record.method || 'Cash'}` },
+              { accountCode: liquidCode, debit: isReversal ? 0 : absAmt, credit: isReversal ? absAmt : 0, memo: isAdj ? (record.notes || "Customer balance adjustment") : `Received via ${rawMethod}` },
               { accountCode: "1100", debit: isReversal ? absAmt : 0, credit: isReversal ? 0 : absAmt, memo: `Accounts Receivable` }
             ],
             referenceNo: payId
@@ -62847,21 +62851,25 @@ window.App.deletePurchase = async function(purchaseId) {
         else if (storeName === "supplierPayments" || (storeName === "payments" && (!record.customerId || record.supplierId))) {
           const payId = String(record.id);
           const amt = num(record.amount || 0);
-          if (amt <= 0) return;
+          if (amt === 0) return;
           const pDate = record.date || record.createdAt || new Date().toISOString();
+          const rawMethod = String(record.paymentMethod || record.method || "Cash").trim();
+          const isAdj = rawMethod.toLowerCase() === "adjustment";
           let bankAcc = null;
-          if (record.bankAccountId) bankAcc = await dbGet("bankAccounts", record.bankAccountId);
-          const liquidCode = resolveLiquidAccountCode(record.paymentMethod || record.method, bankAcc);
+          if (!isAdj && record.bankAccountId) bankAcc = await dbGet("bankAccounts", record.bankAccountId);
+          const liquidCode = isAdj ? "3030" : resolveLiquidAccountCode(rawMethod, bankAcc);
+          const absAmt = Math.abs(amt);
+          const isIncrease = amt < 0 || record.isRefund === true || (isAdj && record.adjustmentType === "increase");
 
           await postJournalEntry({
             entryId: `JE-SPAY-${payId}`,
             transactionRef: payId,
             sourceModule: "SupplierPayment",
             postingDate: pDate,
-            description: `Supplier payment paid (${record.supplierName || record.supplierId || 'Supplier'})`,
+            description: isAdj ? `Supplier payable adjustment (${record.supplierName || record.supplierId || 'Supplier'})` : `Supplier payment paid (${record.supplierName || record.supplierId || 'Supplier'})`,
             lines: [
-              { accountCode: "2010", debit: amt, credit: 0, memo: `Accounts Payable reduction` },
-              { accountCode: liquidCode, debit: 0, credit: amt, memo: `Paid via ${record.paymentMethod || record.method || 'Cash'}` }
+              { accountCode: "2010", debit: isIncrease ? 0 : absAmt, credit: isIncrease ? absAmt : 0, memo: `Accounts Payable` },
+              { accountCode: liquidCode, debit: isIncrease ? absAmt : 0, credit: isIncrease ? 0 : absAmt, memo: isAdj ? (record.notes || "Supplier balance adjustment") : `Paid via ${rawMethod}` }
             ],
             referenceNo: payId
           });
